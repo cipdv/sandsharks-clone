@@ -65,7 +65,7 @@ export async function sendEmail({
 
     // Send the email using Resend
     const { data, error } = await resend.emails.send({
-      from: "Sandsharks <noreply@sandsharks.ca>",
+      from: "Sandsharks <sandsharks@sandsharks.ca>",
       to,
       reply_to: replyTo,
       subject: subject || templateData.subject,
@@ -103,17 +103,19 @@ export async function sendBccEmail({
     const toEmail =
       process.env.NODE_ENV === "development"
         ? "cip.devries@gmail.com"
-        : "noreply@sandsharks.ca"; // Send to ourselves as the main recipient
+        : "sandsharks.org@gmail.com"; // Send to ourselves as the main recipient
 
     // Format recipient emails for BCC
-    const bccEmails =
-      process.env.NODE_ENV === "development"
-        ? ["cip.devries@gmail.com"]
-        : recipients.map((recipient) => recipient.email);
+    // const bccEmails =
+    //   process.env.NODE_ENV === "development"
+    //     ? ["cip.devries@gmail.com"]
+    //     : recipients.map((recipient) => recipient.email);
+
+    const bccEmails = ["cip.devries@gmail.com", "sandsharks.org@gmail.com", "cip_devries@hotmail.com", "cippy_d@hotmail.com", "cdvsignupspare@gmail.com", "info@sandsharks.org"]
 
     // Send the email using Resend with BCC
     const { data, error } = await resend.emails.send({
-      from: "Sandsharks <noreply@sandsharks.ca>",
+      from: "Sandsharks <sandsharks@sandsharks.ca>",
       to: toEmail,
       bcc: bccEmails, // Use BCC for all recipients
       reply_to: replyTo,
@@ -265,10 +267,11 @@ async function sendThrottledBatchEmails({
         }
 
         const result = await sendEmail({
-          to:
-            process.env.NODE_ENV === "development"
-              ? "cip.devries@gmail.com"
-              : recipient.email,
+          // to:
+          //   process.env.NODE_ENV === "development"
+          //     ? "cip.devries@gmail.com"
+          //     : recipient.email,
+          to: "cip.devries@gmail.com",
           subject,
           templateName,
           templateData: {

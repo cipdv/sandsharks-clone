@@ -16,7 +16,7 @@ export async function sendWeeklyPlayDayEmails() {
     const resend = new Resend(resendApiKey);
 
     // Get the base URL for links
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sandsharks.ca";
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
 
     // Get upcoming play days for the weekend
     const today = new Date();
