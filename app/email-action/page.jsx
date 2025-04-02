@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { handleEmailAction } from "@/app/_actions";
 
-export default function EmailActionPage() {
+// Create a separate component that uses useSearchParams
+function EmailActionContent() {
   const [message, setMessage] = useState("Processing your request...");
   const [error, setError] = useState(null);
   const [isProcessing, setIsProcessing] = useState(true);
@@ -165,5 +166,24 @@ export default function EmailActionPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function EmailActionPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-8 px-4">
+        <div className="bg-blue-100 p-4 rounded-md w-full max-w-md mx-auto">
+          <h1 className="text-2xl font-bold mb-6 text-center">Loading...</h1>
+          <div className="flex flex-col items-center p-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-center">Loading page content...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <EmailActionContent />
+    </Suspense>
   );
 }
