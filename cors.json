@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "http://localhost:3000",
+      "sandsharks-org.vercel.app",
+      "sandsharks-raux97s47-cipdvs-projects.vercel.app"
+    ],
+    "method": ["POST"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]

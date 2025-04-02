@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 0, 0, 0; /* change this to black */
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background-image: url("/images/1x/sand-background.webp");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+@media (max-width: 640px) {
+  body {
+    background-image: url("/images/1x/sand-background-mobile.webp");
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #17677a;
+  /* font-style: italic; */
+  font-weight: 500;
+}
+
+.sandsharks-blue {
+  color: #17677a;
+}
+
+nav {
+  padding: 1rem;
+}
+
+section {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.btn {
+  padding: 0.8rem;
+  border-radius: 0.5rem;
+  background: rgb(46, 190, 190);
+  /* background: rgb(156, 71, 212); */
+  border: none;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.btn:hover {
+  background: #e376f1;
+  /* background: rgb(240, 142, 223); */
+}
+
+.btn-volunteer-signup {
+  padding: 0.8rem;
+  border-radius: 0.5rem;
+  background: #dabadf;
+  /* background: rgb(156, 71, 212); */
+  border: none;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.btn-volunteer-signup:hover {
+  background: #bb8cc2;
+  /* background: rgb(240, 142, 223); */
+}
+
+.letter-btn {
+  padding: 0.4rem;
+  border-radius: 0.5rem;
+  background: rgb(227, 118, 241);
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem; /* Smaller font size for mobile */
+}
+
+.letter-btn-1 {
+  background: rgb(46, 190, 190);
+}
+
+.letter-btn-1:hover {
+  background: rgb(227, 118, 241);
+}
+
+/* Increase padding and font size for larger screens */
+@media (min-width: 640px) {
+  .letter-btn {
+    padding: 0.8rem;
+    font-size: 1rem;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.rounded-full {
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.dot-1,
+.dot-2,
+.dot-3 {
+  animation: bounce 1s infinite;
+  animation-delay: 0s;
+}
+
+.dot-2 {
+  animation-delay: 0.2s;
+}
+
+.dot-3 {
+  animation-delay: 0.4s;
+}
+
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+  40% {
+    transform: scale(1);
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rotating-logo {
+  animation: rotate 1.5s linear infinite;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}

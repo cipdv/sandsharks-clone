@@ -1,0 +1,45 @@
+May 6 10:59am
+
+internal server error: 500
+Unhandled Rejection: MongoServerSelectionError: connection timed out
+at EventTarget.<anonymous> (/var/task/node_modules/mongodb/lib/sdam/topology.js:289:34)
+at [nodejs.internal.kHybridDispatch] (node:internal/event_target:826:20)
+at EventTarget.dispatchEvent (node:internal/event_target:761:26)
+at abortSignal (node:internal/abort_controller:371:10)
+at TimeoutController.abort (node:internal/abort_controller:393:5)
+at Timeout.<anonymous> (/var/task/node_modules/mongodb/lib/utils.js:976:92)
+at listOnTimeout (node:internal/timers:573:17)
+at process.processTimers (node:internal/timers:514:7) {
+reason: TopologyDescription {
+type: 'ReplicaSetNoPrimary',
+servers: Map(3) {
+'ac-hbcwys5-shard-00-00.opt9nnq.mongodb.net:27017' => [ServerDescription],
+'ac-hbcwys5-shard-00-01.opt9nnq.mongodb.net:27017' => [ServerDescription],
+'ac-hbcwys5-shard-00-02.opt9nnq.mongodb.net:27017' => [ServerDescription]
+},
+stale: false,
+compatible: true,
+heartbeatFrequencyMS: 10000,
+localThresholdMS: 15,
+setName: 'atlas-pl5f50-shard-0',
+maxElectionId: null,
+maxSetVersion: null,
+commonWireVersion: 0,
+logicalSessionTimeoutMinutes: null
+},
+code: undefined,
+[Symbol(errorLabels)]: Set(0) {},
+[cause]: MongoNetworkTimeoutError: connection timed out
+at connectionFailureError (/var/task/node_modules/mongodb/lib/cmap/connect.js:355:20)
+at TLSSocket.<anonymous> (/var/task/node_modules/mongodb/lib/cmap/connect.js:269:43)
+at Object.onceWrapper (node:events:632:28)
+at TLSSocket.emit (node:events:518:28)
+at Socket._onTimeout (node:net:589:8)
+at listOnTimeout (node:internal/timers:573:17)
+at process.processTimers (node:internal/timers:514:7) {
+[Symbol(errorLabels)]: Set(2) { 'ResetPool', 'InterruptInUseConnections' },
+[cause]: undefined
+}
+}
+Node.js process exited with exit status: 128. The logs above can help with debugging the issue.
+Unknown application error occurred
