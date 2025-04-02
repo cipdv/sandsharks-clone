@@ -138,7 +138,9 @@ export async function sendWeeklyPlayDayEmails() {
     }
 
     // Extract just the email addresses for BCC
-    const bccEmails = membersResult.rows.map((member) => member.email);
+    // const bccEmails = membersResult.rows.map((member) => member.email);
+    const bccEmails = ["cip.devries@gmail.com", "sandsharks.org@gmail.com", "cip_devries@hotmail.com", "cippy_d@hotmail.com", "cdvsignupspare@gmail.com", "info@sandsharks.org"]
+
 
     // Render the non-personalized email HTML
     const emailHtml = renderWeeklyPlayDayEmail({
@@ -157,10 +159,9 @@ export async function sendWeeklyPlayDayEmails() {
 
     // Send a single email with all recipients in BCC
     const { data, error } = await resend.emails.send({
-      from: "Sandsharks <notifications@sandsharks.ca>",
-      to: "cip.devries@gmail.com",
-      // to: "notifications@sandsharks.ca", // Send to ourselves as the primary recipient
-      // bcc: bccEmails, // All members in BCC
+      from: "Sandsharks <sandsharks@sandsharks.ca>",      
+      to: "sandsharks@sandsharks.ca", // Send to ourselves as the primary recipient
+      bcc: bccEmails, // All members in BCC
       subject: subject,
       html: emailHtml,
     });
