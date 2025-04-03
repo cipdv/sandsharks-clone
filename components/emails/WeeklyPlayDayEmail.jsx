@@ -105,7 +105,7 @@ export function renderWeeklyPlayDayEmail({
         ${getVolunteersHtml(playDay)}
         
         <div style="margin-top: 15px;">
-          <a href="${baseUrl}/dashboard/member?from=email&playDayId=${playDay.id}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Details & RSVP</a>
+          <a href="${baseUrl}/api/email-link?target=/dashboard/member&playDayId=${playDay.id}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: bold;">View Details & RSVP</a>
         </div>
       </div>
     `,
@@ -130,6 +130,8 @@ export function renderWeeklyPlayDayEmail({
     templateType: "event",
   })
 }
+
+
 
 
 

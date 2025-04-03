@@ -46,25 +46,36 @@ export async function middleware(request) {
     typeof path === "string" ? path === request.nextUrl.pathname : path.test(request.nextUrl.pathname),
   )
 
+  // Check if this is a direct access to the dashboard from email
+  const isEmailAccess =
+    request.nextUrl.pathname === "/dashboard/member" && request.nextUrl.searchParams.get("from") === "email"
+
+  // If it's a direct access from email, allow it without further checks
+  if (isEmailAccess) {
+    return NextResponse.next()
+  }
+
   // Get current user from cookie
   const currentUser = request.cookies.get("session")?.value
   let currentUserObj = null
 
   if (currentUser) {
-    currentUserObj = await decrypt(currentUser)
+    try {
+      currentUserObj = await decrypt(currentUser)
+    } catch (error) {
+      console.error("Error decrypting session:", error)
+      // If we can't decrypt the session, treat as if no session exists
+      // This handles corrupted cookies
+    }
   }
 
   const memberType = currentUserObj?.resultObj?.memberType
-
-  // Check if the request is coming from an email link
-  const referer = request.headers.get("referer") || ""
-  const isFromEmail = !referer.includes(request.nextUrl.origin)
 
   // If user is not logged in and trying to access a non-public path, redirect to signin
   if (!currentUser && !isPublicPath) {
     // Store the original URL to redirect back after login
     const url = new URL("/signin", request.url)
-    url.searchParams.set("callbackUrl", request.nextUrl.pathname)
+    url.searchParams.set("callbackUrl", request.nextUrl.pathname + request.nextUrl.search)
     return NextResponse.redirect(url)
   }
 
@@ -96,6 +107,8 @@ export async function middleware(request) {
 export const config = {
   matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/(api|trpc)(.*)"],
 }
+
+
 
 
 
