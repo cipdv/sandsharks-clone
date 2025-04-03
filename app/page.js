@@ -11,7 +11,7 @@ export default async function Page() {
           allies.
         </h1>
         <Image
-          src="/images/sandsharks-group.png"
+          src="/images/2024-09-08-sandsharks-group-photo.png"
           width={100}
           height={100}
           className="w-full object-cover mt-4"

@@ -20,6 +20,7 @@ export async function middleware(request) {
     "/survey",
     "/password-reset",
     "/league-history",
+    "/donations",
     "/rules",
     "/email-action",
     "/email-response",

@@ -109,18 +109,17 @@ export async function sendBccEmail({
         : "sandsharks.org@gmail.com"; // Send to ourselves as the main recipient
 
     // Format recipient emails for BCC
-    // const bccEmails =
-    //   process.env.NODE_ENV === "development"
-    //     ? ["cip.devries@gmail.com"]
-    //     : recipients.map((recipient) => recipient.email);
+    const bccEmails =
+      process.env.NODE_ENV === "development"
+        ? ["cip.devries@gmail.com", "sandsharks.org@gmail.com", "cip_devries@hotmail.com", "cippy_d@hotmail.com", "cdvsignupspare@gmail.com", "info@sandsharks.org"]
 
-    const bccEmails = ["cip.devries@gmail.com", "sandsharks.org@gmail.com", "cip_devries@hotmail.com", "cippy_d@hotmail.com", "cdvsignupspare@gmail.com", "info@sandsharks.org"]
+        : recipients.map((recipient) => recipient.email);
 
     // Send the email using Resend with BCC
     const { data, error } = await resend.emails.send({
       from: "Sandsharks <sandsharks@sandsharks.ca>",
       to: toEmail,
-      bcc: bccEmails, // Use BCC for all recipients
+      bcc: bccEmails, 
       reply_to: replyTo,
       subject: subject,
       html: htmlContent,
@@ -270,11 +269,10 @@ async function sendThrottledBatchEmails({
         }
 
         const result = await sendEmail({
-          // to:
-          //   process.env.NODE_ENV === "development"
-          //     ? "cip.devries@gmail.com"
-          //     : recipient.email,
-          to: "cip.devries@gmail.com",
+          to:
+            process.env.NODE_ENV === "development"
+              ? "cip.devries@gmail.com"
+              : recipient.email,
           subject,
           templateName,
           templateData: {

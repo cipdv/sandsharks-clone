@@ -246,6 +246,13 @@ const Navbar = ({ currentUser }) => {
                   League History
                 </Link>
                 <Link
+                  href="/donations"
+                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  onClick={closeMenu}
+                >
+                  Donations
+                </Link>
+                <Link
                   href="/rules"
                   className="py-2 hover:bg-gray-100 rounded pl-2"
                   onClick={closeMenu}
