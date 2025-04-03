@@ -1,5 +1,7 @@
 import { EmailTemplate } from "@/components/emails/EmailTemplate";
 
+// At the top of your file, you can define a baseUrl variable
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
 /**
  * Renders a welcome email for new members
  */
@@ -19,7 +21,7 @@ export function renderWelcomeEmail({ firstName, memberId, currentYear }) {
       <div style="background-color: #f9f9f9; padding: 15px; margin: 15px 0; border-left: 4px solid #0066cc;">
         <p style="font-weight: bold; margin-top: 0;">Sandsharks is run solely by volunteers and donations from members like you.</p>
         <p>Once logged in, please consider making a donation to Sandsharks for the ${currentYear} season. Donations are pay-what-you-can, with a suggested donation of $40 per player for the entire season to help cover costs of court rentals, replacing worn out equipment, storage, website fees, and more.</p>
-        <p style="margin-bottom: 0;"><a href="https://sandsharks.ca/donate" style="display: inline-block; background-color: #0066cc; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Donate Today</a></p>
+        <p style="margin-bottom: 0;"><a href="${baseUrl}/donations" style="display: inline-block; background-color: #0066cc; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Donate Today</a></p>
       </div>
       
       <h3 style="color: #0066cc; margin-top: 25px;">If you do not have any experience playing 2v2 beach volleyball or have some experience playing indoor volleyball at a recreational level:</h3>
@@ -64,7 +66,7 @@ export function renderWelcomeEmail({ firstName, memberId, currentYear }) {
         </a>
         that explains all the unique rules of 2v2 beach volleyball. The complete
         rules of 2v2 beach volleyball are posted on
-        <a href="https://www.sandsharks.ca/member/rules" style="color: #0066cc; text-decoration: underline;">
+        <a href="${baseUrl}/member/rules" style="color: #0066cc; text-decoration: underline;">
           sandsharks.ca/member/rules
         </a>.
       </p>
@@ -125,6 +127,38 @@ export function renderPasswordResetEmail({
     memberId,
     templateType: "alert", // Using alert template type for password reset
   });
+}
+
+export function renderPasswordResetConfirmationEmail({ firstName, memberId }) {
+  const content = `
+      <h2>Password Reset Successful</h2>
+      <p>Hello ${firstName || "there"}!</p>
+      
+      <p>Your Sandsharks account password has been successfully reset.</p>
+      
+      <div style="margin: 20px 0; padding: 15px; background-color: #f0f9ff; border-left: 4px solid #0066cc; border-radius: 3px;">
+        <p style="margin: 0; font-weight: bold;">Security Notice</p>
+        <p style="margin-top: 10px;">If you did not make this change, please contact us immediately at <a href="mailto:sandsharks.org@gmail.com" style="color: #0066cc; text-decoration: underline;">sandsharks.org@gmail.com</a>.</p>
+      </div>
+      
+      <p>You can now log in to your account with your new password.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${baseUrl}/signin" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+          Sign In
+        </a>
+      </div>
+      
+      <p style="margin-top: 30px;">See you on the sand!</p>
+    `
+
+  return EmailTemplate({
+    subject: "Your Sandsharks Password Has Been Reset",
+    preheaderText: "Your Sandsharks account password has been successfully reset",
+    content,
+    memberId,
+    templateType: "alert", // Using alert template type for security-related emails
+  })
 }
 
 /**
@@ -188,7 +222,7 @@ export function renderPlayDayAnnouncementEmail({
     <h2>${formattedDate} - Beach Volleyball Play Day</h2>
     
     <div style="background-color: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-      <h3 style="margin-top: 0; color: #0066cc;">${playDay.title}</h3>
+      // <h3 style="margin-top: 0; color: #0066cc;">${playDay.title}</h3>
       <p><strong>Time:</strong> ${timeRange}</p>
       <p><strong>Courts:</strong> ${playDay.courts}</p>
       <p>${playDay.description}</p>
@@ -199,7 +233,7 @@ export function renderPlayDayAnnouncementEmail({
     </div>
 
     <div style="text-align: center; margin: 30px 0;">
-      <a href="https://sandsharks.ca/dashboard/play-day/${playDay.id}"
+      <a href="${baseUrl}/dashboard/member"
          style="display: inline-block; background-color: #ff6600; color: white;
                 padding: 12px 25px; text-decoration: none; border-radius: 5px;
                 font-weight: bold; font-size: 16px;">
@@ -244,7 +278,7 @@ export function renderPlayDayCancellationEmail({
           <p style="color: #333333;">${cancellationReason}</p>
         </div>
         
-        <p style="color: #333333;">Please check <a href="https://www.sandsharks.ca" style="color: #0066cc; text-decoration: underline;">sandsharks.ca</a> for updates on future play days.</p>
+        <p style="color: #333333;">Please check <a href="${baseUrl}" style="color: #0066cc; text-decoration: underline;">sandsharks.ca</a> for updates on future play days.</p>
         <p style="font-style: italic; color: #666;">-Cip</p>
       `;
 
@@ -296,7 +330,7 @@ export function renderEmailBlastEmail({
         <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #ff6600;">
           <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
           <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
-          <p><a href="https://sandsharks.ca/donate" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Donate Now</a></p>
+          <p><a href="${baseUrl}/donate" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Donate Now</a></p>
         </div>
       `;
 
@@ -384,7 +418,7 @@ export function renderVolunteerApprovalEmail({
       <div style="margin: 25px 0; padding: 15px; background-color: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 3px;">
         <p style="margin: 0; font-weight: bold; color: #333333;">What's Next?</p>
         <p style="margin-top: 10px; color: #333333;">Please log in to your account to view the play day details and any updates. As a volunteer, you'll be able to post updates about the play day for other members to see.</p>
-          <p>Remember to check the <a href="https://sandsharks.ca/dashboard/member/volunteer-guide" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">volunteer guide</a> for all the information you need on your volunteer day.</p>
+          <p>Remember to check the <a href="${baseUrl}/dashboard/member/volunteer-guide" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">volunteer guide</a> for all the information you need on your volunteer day.</p>
 
         </div>
       
@@ -413,12 +447,12 @@ export function renderSponsorApprovalEmail({ firstName, sponsorName }) {
       
       <div style="margin: 25px 0; padding: 15px; background-color: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 3px;">
         <p style="margin: 0; font-weight: bold; color: #333333;">What's Next?</p>
-        <p style="margin-top: 10px; color: #333333;">Our team will be in touch if we need any additional information or materials from you. You can log in to your account to view your sponsorship details at any time.</p>
+        <p style="margin-top: 10px; color: #333333;">We'll reach out to you shortly to go over the next steps.</p>
       </div>
       
       <p style="color: #333333;">Thank you for supporting Sandsharks Beach Volleyball!</p>
       
-      <p style="color: #333333;">Best regards,<br>The Sandsharks Team</p>
+      <p style="color: #333333;">-Cip, Sandsharks Organizer</p>
     `;
 
   return EmailTemplate({

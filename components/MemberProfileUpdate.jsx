@@ -14,6 +14,9 @@ const initialState = {
 };
 
 export default function MemberProfileUpdate({ user }) {
+  
+
+  console.log('user memberprofile', user)
   const router = useRouter();
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [aboutCount, setAboutCount] = useState(

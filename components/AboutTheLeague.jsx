@@ -40,11 +40,11 @@ const AboutTheLeague = () => {
       <p className="mt-2">
         <a
           className="text-blue-700 hover:text-blue-500"
-          href="https://www.toronto.ca/data/parks/prd/facilities/complex/1/index.html"
+          href="https://www.toronto.ca/explore-enjoy/parks-recreation/places-spaces/parks-and-recreation-facilities/location/?id=311&title=Woodbine-Beach-Park"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Ashbridges Bay
+          Woodbine Beach
         </a>{" "}
         in the Toronto Beaches. This is a public beach, so please do your best
         to familiarize yourself with and follow the rules of the beach so that
@@ -77,8 +77,8 @@ const AboutTheLeague = () => {
       <p>
         We ask all members to consider making a donation. Donations are
         pay-what-you-can, with a suggested amount of $40/player for the entire
-        season to help cover the cost of court rentals, storage, and new
-        equipment.
+        season to help cover the cost of court rentals, storage, and replacing
+        worn out equipment.
       </p>
       <br />
       <p>

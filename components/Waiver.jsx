@@ -1,7 +1,7 @@
 "use client";
 
 import { confirmWaiver } from "@/app/_actions";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
 function SubmitButton() {
@@ -20,6 +20,10 @@ function SubmitButton() {
 
 const Waiver = () => {
   const [waiverAgreement, setWaiverAgreement] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   return (
     <div className="w-full max-w-4xl mx-auto">

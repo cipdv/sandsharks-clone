@@ -1,45 +1,38 @@
-"use client";
-import { useState } from "react";
-import { useActionState } from "react";
-import { useFormStatus } from "react-dom";
-import { setNewPassword } from "@/app/_actions";
-import Link from "next/link";
-import { use } from "react"; // Add this import
+"use client"
+import { useState } from "react"
+import { useActionState } from "react"
+import { setNewPassword } from "@/app/_actions"
+import Link from "next/link"
+import { use } from "react"
+import { useRouter } from "next/navigation"
+import { ActionButton } from "@/components/ActionButton"
 
 const initialState = {
   message: "",
   error: "",
-};
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-
-  return (
-    <button type="submit" aria-disabled={pending} className="btn mt-4">
-      {pending ? "Submitting..." : "Set new password"}
-    </button>
-  );
 }
 
 const setNewPasswordPage = ({ params }) => {
+  const router = useRouter()
   // Unwrap params with React.use()
-  const resolvedParams = use(params);
-  const token = resolvedParams.token;
+  const resolvedParams = use(params)
+  const token = resolvedParams.token
 
-  const [state, formAction, isPending] = useActionState(
-    setNewPassword,
-    initialState
-  );
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [state, formAction, isPending] = useActionState(setNewPassword, initialState)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
+    setShowPassword(!showPassword)
+  }
 
   const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
+    setShowConfirmPassword(!showConfirmPassword)
+  }
+
+  const navigateToSignIn = () => {
+    router.push("/signin")
+  }
 
   return (
     <section>
@@ -47,6 +40,7 @@ const setNewPasswordPage = ({ params }) => {
         action={formAction}
         className="bg-blue-100 p-4 rounded-md mt-6 w-full sm:w-4/5 md:w-3/5 lg:w-2/5 xl:w-1/3 mx-auto max-w-md"
       >
+        <h1 className="text-2xl font-bold mb-4 text-center">Reset Your Password</h1>
         <input type="hidden" name="token" value={token} />
         <label htmlFor="password">New password</label>
         <div className="flex items-center mb-4 mt-2">
@@ -58,12 +52,12 @@ const setNewPasswordPage = ({ params }) => {
             required
             className="block mr-2 flex-grow p-2"
           />
-          <button
-            type="button"
-            onClick={togglePasswordVisibility}
-            className="ml-2"
-          >
-            {showPassword ? "Hide password" : "Show password"}
+          <button type="button" onClick={togglePasswordVisibility} className="ml-2">
+            {showPassword ? (
+              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+            ) : (
+              <img src="/images/icons8-eye-16.png" alt="Show password" />
+            )}
           </button>
         </div>
         <label htmlFor="confirmPassword">Confirm new password</label>
@@ -76,42 +70,42 @@ const setNewPasswordPage = ({ params }) => {
             required
             className="block mr-2 flex-grow p-2"
           />
-          <button
-            type="button"
-            onClick={toggleConfirmPasswordVisibility}
-            className="ml-2"
-          >
-            {showConfirmPassword ? "Hide password" : "Show password"}
+          <button type="button" onClick={toggleConfirmPasswordVisibility} className="ml-2">
+            {showConfirmPassword ? (
+              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+            ) : (
+              <img src="/images/icons8-eye-16.png" alt="Show password" />
+            )}
           </button>
         </div>
         {state?.message ? (
           <>
-            <h1 className="text-green-500">{state?.message}</h1>
-            <h1>
-              <Link href="/signin">Click here to sign in.</Link>
-            </h1>
+            <h1 className="text-sandsharks-blue mb-4">{state?.message}</h1>
+            <ActionButton onClick={navigateToSignIn} className="mt-2">
+              Sign in
+            </ActionButton>
           </>
         ) : (
           <>
             {state?.error && <h1 className="text-red-500">{state?.error}</h1>}
-            {state?.error?.includes(
-              "Password reset token is invalid or has expired"
-            ) && (
+            {state?.error?.includes("Password reset token is invalid or has expired") && (
               <h1>
-                <Link href="/password-reset">
-                  Click here to send a new token.
-                </Link>
+                <Link href="/password-reset">Click here to send a new token.</Link>
               </h1>
             )}
-            <SubmitButton />
+            <ActionButton className="mt-4">Set new password</ActionButton>
           </>
         )}
       </form>
     </section>
-  );
-};
+  )
+}
 
-export default setNewPasswordPage;
+export default setNewPasswordPage
+
+
+
+
 
 // "use client";
 // import { useState } from "react";
@@ -160,11 +154,11 @@ export default setNewPasswordPage;
 //     <section>
 //       <form
 //         action={formAction}
-//         className="bg-blue-100 p-4 rounded-md mt-6 w-full lg:w-3/5 mx-auto"
+//         className="bg-blue-100 p-4 rounded-md mt-6 w-full sm:w-4/5 md:w-3/5 lg:w-2/5 xl:w-1/3 mx-auto max-w-md"
 //       >
 //         <input type="hidden" name="token" value={token} />
 //         <label htmlFor="password">New password</label>
-//         <div className="flex items-center mb-4">
+//         <div className="flex items-center mb-4 mt-2">
 //           <input
 //             type={showPassword ? "text" : "password"}
 //             id="password"
@@ -182,7 +176,7 @@ export default setNewPasswordPage;
 //           </button>
 //         </div>
 //         <label htmlFor="confirmPassword">Confirm new password</label>
-//         <div className="flex items-center mb-4">
+//         <div className="flex items-center mb-4 mt-2">
 //           <input
 //             type={showConfirmPassword ? "text" : "password"}
 //             id="confirmPassword"
@@ -227,3 +221,4 @@ export default setNewPasswordPage;
 // };
 
 // export default setNewPasswordPage;
+

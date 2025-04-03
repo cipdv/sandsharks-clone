@@ -26,6 +26,9 @@ export async function sendEmail({
       case "passwordReset":
         htmlContent = EmailTemplates.renderPasswordResetEmail(templateData);
         break;
+      case "passwordResetConfirmation":
+        htmlContent = EmailTemplates.renderPasswordResetConfirmationEmail(templateData)
+        break;
       case "donationThankYou":
         htmlContent = EmailTemplates.renderDonationThankYouEmail(templateData);
         break;

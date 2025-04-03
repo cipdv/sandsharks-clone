@@ -44,6 +44,14 @@ export default async function BecomeSponsorPage() {
               choosing
             </li>
           </ul>
+          <h3 className="text-xl font-semibold mt-6 mb-3">
+            Cost of Sponsorship:
+          </h3>
+          <p className="mb-4">
+            To sponsor Sandsharks, we're asking for a $200 donation to cover the
+            cost of running a day of beach volleyball for the group (permit
+            rentals, insurance, equipment storage).
+          </p>
         </div>
 
         <div className="bg-blue-100 p-6 rounded-lg shadow-md">

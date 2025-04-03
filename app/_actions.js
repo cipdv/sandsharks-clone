@@ -55,7 +55,11 @@ export async function getCurrentUser() {
           created_at, 
           waiver_confirmed, 
           waiver_confirmed_at,
-          welcome_confirmed
+          welcome_confirmed,
+          last_donation_date,
+          email_list,
+          photo_consent,
+          instagram_handle
         FROM 
           members 
         WHERE 
@@ -83,7 +87,13 @@ export async function getCurrentUser() {
           waiverConfirmed: userData.rows[0].waiver_confirmed,
           waiverConfirmedAt: userData.rows[0].waiver_confirmed_at,
           welcomeConfirmed: userData.rows[0].welcome_confirmed,
+          lastDonationDate: userData.rows[0].last_donation_date || null,
+          emailList: userData.rows[0].email_list || false,
+          photoConsent: userData.rows[0].photo_consent || false,
+          instagramHandle: userData.rows[0].instagram_handle || null
         }
+
+        console.log('current user', currentUser)
 
         return currentUser
       }
@@ -95,16 +105,16 @@ export async function getCurrentUser() {
     return null
   }
 }
-
 // export async function getCurrentUser() {
-//   const session = await getSession();
-//   if (session) {
-//     // Extract the ID from the session (it's already a string)
-//     const id = session.resultObj._id;
+//   try {
+//     // Get the session
+//     const session = await getSession()
 
-//     try {
-//       // Query the user from PostgreSQL
-//       const result = await sql`
+//     if (session?.resultObj?._id) {
+//       const userId = session.resultObj._id
+
+//       // Get the user data from the database
+//       const userData = await sql`
 //         SELECT 
 //           id, 
 //           first_name, 
@@ -113,176 +123,151 @@ export async function getCurrentUser() {
 //           member_type, 
 //           pronouns, 
 //           about, 
-//           profile_pic_status, 
 //           profile_pic_url, 
-//           created_at,
+//           profile_pic_status, 
+//           created_at, 
 //           waiver_confirmed, 
 //           waiver_confirmed_at,
-//           last_donation_date,
-//           last_donation_amount,
-//           email_list,
-//           photo_consent,
-//           instagram_handle
-//         FROM members 
-//         WHERE id = ${id}
-//       `;
+//           welcome_confirmed,
+//           last_donation_date
+//         FROM 
+//           members 
+//         WHERE 
+//           id = ${userId}
+//       `
 
-//       // Check if user was found
-//       if (result.rows.length === 0) {
-//         return null;
+//       if (userData.rows.length > 0) {
+//         // Convert from snake_case to camelCase for frontend consistency
+//         const currentUser = {
+//           id: userData.rows[0].id.toString(),
+//           _id: userData.rows[0].id.toString(),
+//           firstName: userData.rows[0].first_name,
+//           lastName: userData.rows[0].last_name,
+//           email: userData.rows[0].email,
+//           memberType: userData.rows[0].member_type,
+//           pronouns: userData.rows[0].pronouns,
+//           about: userData.rows[0].about,
+//           profilePic: userData.rows[0].profile_pic_url
+//             ? {
+//                 status: userData.rows[0].profile_pic_status,
+//                 url: userData.rows[0].profile_pic_url,
+//               }
+//             : undefined,
+//           createdAt: userData.rows[0].created_at,
+//           waiverConfirmed: userData.rows[0].waiver_confirmed,
+//           waiverConfirmedAt: userData.rows[0].waiver_confirmed_at,
+//           welcomeConfirmed: userData.rows[0].welcome_confirmed,
+//           lastDonationDate: userData.rows[0].last_donation_date || null,
+//         }
+
+//         return currentUser
 //       }
-
-//       // Format the user data to match the expected structure
-//       const userData = result.rows[0];
-
-//       // Convert from snake_case to camelCase for frontend consistency
-//       const currentUser = {
-//         _id: userData.id.toString(),
-//         firstName: userData.first_name,
-//         lastName: userData.last_name,
-//         email: userData.email,
-//         memberType: userData.member_type,
-//         pronouns: userData.pronouns,
-//         about: userData.about,
-//         profilePic: userData.profile_pic_url
-//           ? {
-//               status: userData.profile_pic_status,
-//               url: userData.profile_pic_url,
-//             }
-//           : undefined,
-//         createdAt: userData.created_at,
-//         waiverConfirmed: userData.waiver_confirmed,
-//         waiverConfirmedAt: userData.waiver_confirmed_at,
-//         lastDonationDate: userData.last_donation_date,
-//         lastDonationAmount: userData.last_donation_amount,
-//         emailList: userData.email_list,
-//         photoConsent: userData.photo_consent,
-//         instagramHandle: userData.instagram_handle,
-//       };
-
-//       return currentUser;
-//     } catch (error) {
-//       console.error("Error getting current user:", error);
-//       return null;
 //     }
+
+//     return null
+//   } catch (error) {
+//     console.error("Error getting current user:", error)
+//     return null
 //   }
-//   return null;
 // }
 
 export async function registerNewMember(prevState, formData) {
   // Convert the form data to an object
-  const formDataObj = Object.fromEntries(formData.entries());
+  const formDataObj = Object.fromEntries(formData.entries())
 
   // Normalize the email address
-  formDataObj.email = formDataObj.email.toLowerCase().trim();
+  formDataObj.email = formDataObj.email.toLowerCase().trim()
 
   // Capitalize the first letter of the first name and preferred name
-  formDataObj.firstName =
-    formDataObj.firstName.charAt(0).toUpperCase() +
-    formDataObj.firstName.slice(1);
+  formDataObj.firstName = formDataObj.firstName.charAt(0).toUpperCase() + formDataObj.firstName.slice(1)
 
   // Validate the form data
-  const result = MemberSchema.safeParse(formDataObj);
+  const result = MemberSchema.safeParse(formDataObj)
 
   if (result.error) {
     // Find the error related to the password length
     const passwordError = result.error.issues.find(
-      (issue) =>
-        issue.path[0] === "password" &&
-        issue.type === "string" &&
-        issue.minimum === 6
-    );
+      (issue) => issue.path[0] === "password" && issue.type === "string" && issue.minimum === 6,
+    )
 
     const confirmPasswordError = result.error.issues.find(
-      (issue) =>
-        issue.path[0] === "confirmPassword" &&
-        issue.type === "string" &&
-        issue.minimum === 6
-    );
+      (issue) => issue.path[0] === "confirmPassword" && issue.type === "string" && issue.minimum === 6,
+    )
 
     // If the error exists, return a custom message
     if (passwordError) {
-      return { password: "^ Password must be at least 6 characters long" };
+      return { password: "^ Password must be at least 6 characters long" }
     }
 
     if (confirmPasswordError) {
       return {
-        confirmPassword:
-          "^ Passwords must be at least 6 characters long and match",
-      };
+        confirmPassword: "^ Passwords must be at least 6 characters long and match",
+      }
     }
 
     const emailError = result.error.issues.find((issue) => {
-      return (
-        issue.path[0] === "email" &&
-        issue.validation === "email" &&
-        issue.code === "invalid_string"
-      );
-    });
+      return issue.path[0] === "email" && issue.validation === "email" && issue.code === "invalid_string"
+    })
 
     if (emailError) {
-      return { email: "^ Please enter a valid email address" };
+      return { email: "^ Please enter a valid email address" }
     }
 
     if (!result.success) {
       return {
-        message:
-          "Failed to register: make sure all required fields are completed and try again",
-      };
+        message: "Failed to register: make sure all required fields are completed and try again",
+      }
     }
   }
 
-  const { firstName, lastName, pronouns, email, password, confirmPassword } =
-    result.data;
+  const { firstName, lastName, pronouns, email, password, confirmPassword } = result.data
 
   //check if passwords match
   if (password !== confirmPassword) {
-    return { confirmPassword: "^ Passwords do not match" };
+    return { confirmPassword: "^ Passwords do not match" }
   }
 
   try {
     // Check if user already exists using PostgreSQL
     const existingUser = await sql`
       SELECT * FROM members WHERE email = ${email}
-    `;
+    `
 
     if (existingUser.rows.length > 0) {
-      return { email: "^ This email is already registered" };
+      return { email: "^ This email is already registered" }
     }
 
     //hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(password, salt)
 
     // Get the profile picture data URL if it exists
-    const profilePictureDataUrl = formData.get("profilePictureDataUrl");
-    let profilePicUrl = null;
-    let profilePicStatus = null;
+    const profilePictureDataUrl = formData.get("profilePictureDataUrl")
+    let profilePicUrl = null
+    let profilePicStatus = null
 
     // If a profile picture was uploaded, process it
     if (profilePictureDataUrl) {
       // Convert data URL to a Buffer
-      const base64Data = profilePictureDataUrl.split(",")[1];
-      const buffer = Buffer.from(base64Data, "base64");
+      const base64Data = profilePictureDataUrl.split(",")[1]
+      const buffer = Buffer.from(base64Data, "base64")
 
       // Upload the profile picture to Vercel Blob
-      const { put } = await import("@vercel/blob");
-      const filename = `profile-pic-signup-${Date.now()}.jpg`;
+      const { put } = await import("@vercel/blob")
+      const filename = `profile-pic-signup-${Date.now()}.jpg`
 
       const blob = await put(filename, buffer, {
         access: "public",
         contentType: "image/jpeg",
-      });
+      })
 
-      profilePicUrl = blob.url;
-      profilePicStatus = "pending"; // Set status to pending for admin approval
+      profilePicUrl = blob.url
+      profilePicStatus = "pending" // Set status to pending for admin approval
     }
 
     // Get and clean Instagram handle
-    const instagramHandle = formData.get("instagramHandle");
-    const cleanedInstagramHandle = instagramHandle
-      ? instagramHandle.trim().replace(/^@/, "")
-      : null;
+    const instagramHandle = formData.get("instagramHandle")
+    const cleanedInstagramHandle = instagramHandle ? instagramHandle.trim().replace(/^@/, "") : null
 
     // Insert new user into PostgreSQL with profile picture if provided
     const newMember = await sql`
@@ -313,10 +298,10 @@ export async function registerNewMember(prevState, formData) {
         ${cleanedInstagramHandle}
       )
       RETURNING *
-    `;
+    `
 
     // Get the inserted member data
-    const memberData = newMember.rows[0];
+    const memberData = newMember.rows[0]
 
     // Use the new email template system to send the welcome email
     // const { sendEmail } = await import("@/lib/email-sender");
@@ -331,15 +316,16 @@ export async function registerNewMember(prevState, formData) {
         currentYear: new Date().getFullYear(),
       },
       replyTo: process.env.REPLY_TO_EMAIL,
-    });
+    })
 
     if (!emailResult.success) {
-      console.error("Error sending welcome email:", emailResult.error);
+      console.error("Error sending welcome email:", emailResult.error)
       // Continue with registration even if email fails
     }
 
     //remove password from the object
     const resultObj = {
+      id: memberData.id, // Added this line to include the id property
       _id: memberData.id.toString(),
       firstName: memberData.first_name,
       lastName: memberData.last_name,
@@ -354,53 +340,29 @@ export async function registerNewMember(prevState, formData) {
           }
         : null,
       instagramHandle: memberData.instagram_handle,
-    };
+    }
 
     // Create the session
-    const expires = new Date(Date.now() + 10 * 60 * 1000);
-    const session = await encrypt({ resultObj, expires });
+    const expires = new Date(Date.now() + 10 * 60 * 1000)
+    const session = await encrypt({ resultObj, expires })
 
     // Save the session in a cookie
-    const cookieStore = await cookies();
+    const cookieStore = await cookies()
     cookieStore.set("session", session, {
       expires,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-    });
+    })
   } catch (error) {
-    console.log(error);
+    console.log(error)
     return {
-      message:
-        "Failed to register: make sure all required fields are completed and try again",
-    };
-  }
-
-  revalidatePath("/");
-  redirect("/dashboard/member");
-}
-
-export async function confirmWelcomeRead(prevState, formData) {
-  try {
-    const userId = formData.get("userId")
-
-    if (!userId) {
-      return { success: false, message: "User ID is required" }
+      message: "Failed to register: make sure all required fields are completed and try again",
     }
-
-    // Update the members table with the confirmation date
-    await sql`
-      UPDATE members
-      SET welcome_confirmed = ${new Date()}
-      WHERE id = ${userId}
-    `
-
-    revalidatePath("/dashboard/member")
-    return { success: true, message: "Thanks for reading! You're all set for the season." }
-  } catch (error) {
-    console.error("Error confirming welcome read:", error)
-    return { success: false, message: "Failed to confirm. Please try again." }
   }
+
+  revalidatePath("/")
+  redirect("/dashboard/member")
 }
 
 // export async function registerNewMember(prevState, formData) {
@@ -488,27 +450,63 @@ export async function confirmWelcomeRead(prevState, formData) {
 //     const salt = await bcrypt.genSalt(10);
 //     const hashedPassword = await bcrypt.hash(password, salt);
 
-//     // Insert new user into PostgreSQL FIRST
+//     // Get the profile picture data URL if it exists
+//     const profilePictureDataUrl = formData.get("profilePictureDataUrl");
+//     let profilePicUrl = null;
+//     let profilePicStatus = null;
+
+//     // If a profile picture was uploaded, process it
+//     if (profilePictureDataUrl) {
+//       // Convert data URL to a Buffer
+//       const base64Data = profilePictureDataUrl.split(",")[1];
+//       const buffer = Buffer.from(base64Data, "base64");
+
+//       // Upload the profile picture to Vercel Blob
+//       const { put } = await import("@vercel/blob");
+//       const filename = `profile-pic-signup-${Date.now()}.jpg`;
+
+//       const blob = await put(filename, buffer, {
+//         access: "public",
+//         contentType: "image/jpeg",
+//       });
+
+//       profilePicUrl = blob.url;
+//       profilePicStatus = "pending"; // Set status to pending for admin approval
+//     }
+
+//     // Get and clean Instagram handle
+//     const instagramHandle = formData.get("instagramHandle");
+//     const cleanedInstagramHandle = instagramHandle
+//       ? instagramHandle.trim().replace(/^@/, "")
+//       : null;
+
+//     // Insert new user into PostgreSQL with profile picture if provided
 //     const newMember = await sql`
 //       INSERT INTO members (
-//         first_name,
-//         last_name,
-//         pronouns,
-//         email,
-//         member_type,
-//         password,
+//         first_name, 
+//         last_name, 
+//         pronouns, 
+//         email, 
+//         member_type, 
+//         password, 
 //         created_at,
-//         email_list
-//       )
+//         email_list,
+//         profile_pic_url,
+//         profile_pic_status,
+//         instagram_handle
+//       ) 
 //       VALUES (
-//         ${firstName},
-//         ${lastName},
-//         ${pronouns},
-//         ${email},
-//         ${"pending"},
-//         ${hashedPassword},
+//         ${firstName}, 
+//         ${lastName}, 
+//         ${pronouns}, 
+//         ${email}, 
+//         ${"pending"}, 
+//         ${hashedPassword}, 
 //         ${new Date()},
-//         ${true}
+//         ${true},
+//         ${profilePicUrl},
+//         ${profilePicStatus},
+//         ${cleanedInstagramHandle}
 //       )
 //       RETURNING *
 //     `;
@@ -545,703 +543,61 @@ export async function confirmWelcomeRead(prevState, formData) {
 //       memberType: memberData.member_type,
 //       pronouns: memberData.pronouns,
 //       createdAt: memberData.created_at,
-//     };
-
-//     // Create the session
-//     const expires = new Date(Date.now() + 10 * 60 * 1000);
-//     const session = await encrypt({ resultObj, expires });
-
-//     // Save the session in a cookie
-//     const cookieStore = await cookies();
-//     cookieStore.set("session", session, {
-//       expires,
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === "production",
-//       sameSite: "strict",
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     return {
-//       message:
-//         "Failed to register: make sure all required fields are completed and try again",
-//     };
-//   }
-
-//   revalidatePath("/");
-//   redirect("/dashboard/member");
-// }
-
-// export async function registerNewMember(prevState, formData) {
-//   // Convert the form data to an object
-//   const formDataObj = Object.fromEntries(formData.entries());
-
-//   // Normalize the email address
-//   formDataObj.email = formDataObj.email.toLowerCase().trim();
-
-//   // Capitalize the first letter of the first name and preferred name
-//   formDataObj.firstName =
-//     formDataObj.firstName.charAt(0).toUpperCase() +
-//     formDataObj.firstName.slice(1);
-
-//   // Validate the form data
-//   const result = MemberSchema.safeParse(formDataObj);
-
-//   if (result.error) {
-//     // Find the error related to the password length
-//     const passwordError = result.error.issues.find(
-//       (issue) =>
-//         issue.path[0] === "password" &&
-//         issue.type === "string" &&
-//         issue.minimum === 6
-//     );
-
-//     const confirmPasswordError = result.error.issues.find(
-//       (issue) =>
-//         issue.path[0] === "confirmPassword" &&
-//         issue.type === "string" &&
-//         issue.minimum === 6
-//     );
-
-//     // If the error exists, return a custom message
-//     if (passwordError) {
-//       return { password: "^ Password must be at least 6 characters long" };
-//     }
-
-//     if (confirmPasswordError) {
-//       return {
-//         confirmPassword:
-//           "^ Passwords must be at least 6 characters long and match",
-//       };
-//     }
-
-//     const emailError = result.error.issues.find((issue) => {
-//       return (
-//         issue.path[0] === "email" &&
-//         issue.validation === "email" &&
-//         issue.code === "invalid_string"
-//       );
-//     });
-
-//     if (emailError) {
-//       return { email: "^ Please enter a valid email address" };
-//     }
-
-//     if (!result.success) {
-//       return {
-//         message:
-//           "Failed to register: make sure all required fields are completed and try again",
-//       };
-//     }
-//   }
-
-//   const { firstName, lastName, pronouns, email, password, confirmPassword } =
-//     result.data;
-
-//   //check if passwords match
-//   if (password !== confirmPassword) {
-//     return { confirmPassword: "^ Passwords do not match" };
-//   }
-
-//   try {
-//     // Check if user already exists using PostgreSQL
-//     const existingUser = await sql`
-//       SELECT * FROM members WHERE email = ${email}
-//     `;
-
-//     if (existingUser.rows.length > 0) {
-//       return { email: "^ This email is already registered" };
-//     }
-
-//     //hash password
-//     const salt = await bcrypt.genSalt(10);
-//     const hashedPassword = await bcrypt.hash(password, salt);
-
-//     // Insert new user into PostgreSQL FIRST
-//     const newMember = await sql`
-//       INSERT INTO members (
-//         first_name,
-//         last_name,
-//         pronouns,
-//         email,
-//         member_type,
-//         password,
-//         created_at,
-//         email_list
-//       )
-//       VALUES (
-//         ${firstName},
-//         ${lastName},
-//         ${pronouns},
-//         ${email},
-//         ${"pending"},
-//         ${hashedPassword},
-//         ${new Date()},
-//         ${true}
-//       )
-//       RETURNING *
-//     `;
-
-//     // Get the inserted member data
-//     const memberData = newMember.rows[0];
-
-//     // NOW create and send the welcome email with the member ID
-//     const subject = "Welcome to Sandsharks!";
-//     const welcomeEmailHtml = `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-//       <div style="background-color: #0066cc; padding: 20px; text-align: center;">
-//         <h1 style="color: white; margin: 0;">Toronto Sandsharks Beach Volleyball</h1>
-//       </div>
-
-//       <div style="padding: 20px; background-color: #ffffff;">
-//         <h2 style="color: #0066cc; margin-top: 0;">Welcome to Sandsharks!</h2>
-//         <p>Hi ${firstName},</p>
-//         <p>We are excited to have you join our community.</p>
-//         <p>
-//           My name is Cip, I run the league and I'm here to help you get started.
-//         </p>
-//         <p>
-//           Now that you're signed up, you can login at sandsharks.ca to check the
-//           season schedule to see when we'll be playing. Once you login, you'll need to accept the waiver and agree to the code of conduct to continue.
-//         </p>
-
-//         <div style="background-color: #f9f9f9; padding: 15px; margin: 15px 0; border-left: 4px solid #0066cc;">
-//           <p style="font-weight: bold; margin-top: 0;">Sandsharks is run solely by volunteers and donations from members like you.</p>
-//           <p>Once logged in, please consider making a donation to Sandsharks for the ${new Date().getFullYear()} season. Donations are pay-what-you-can, with a suggested donation of $40 per player for the entire season to help cover costs of court rentals, replacing worn out equipment, storage, website fees, and more.</p>
-//           <p style="margin-bottom: 0;"><a href="https://sandsharks.ca/donate" style="display: inline-block; background-color: #0066cc; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px;">Donate Today</a></p>
-//         </div>
-
-//         <h3 style="color: #0066cc; margin-top: 25px;">If you do not have any experience playing 2v2 beach volleyball or have some experience playing indoor volleyball at a recreational level:</h3>
-//         <p>
-//           Have no fear, we run free clinics on most weekends to help beginner
-//           players learn how to play the game. I would like you to start with the
-//           beginner clinic before jumping into playing games with the group, and
-//           once I see that you can consistently serve, pass, set, and attack the
-//           ball, then you can join in with the rest of the group.
-//         </p>
-//         <p>
-//           Check the season schedule to see which days the clinic is offered. If you plan on coming, please click
-//           the "Yas, plz help me!" button. There is limited space for new players
-//           in the clinic, so if you can no longer make it, please click the "I
-//           can't make it anymore" button so that someone else can take that spot.
-//           Feel free to bring a friend, just make sure they have also signed up on
-//           the website, completed the waiver, and have RSVP'd to the weekly post.
-//         </p>
-
-//         <h3 style="color: #0066cc; margin-top: 25px;">If you have experience playing beach volleyball or indoor volleyball at a competitive level:</h3>
-//         <p>
-//           Check the website for the schedule of when we'll be playing this Summer. If you plan on coming, please click the "I'll be
-//           there!" button, it helps me know how much equipment to bring to the
-//           beach, and please click the "I can no longer make it" button if you
-//           change your mind.
-//         </p>
-//         <p>
-//           The start times, end times and court numbers are posted on the website, along with which volunteers will be in charge that day. When you arrive, ask anyone for the volunteer in charge that day before jumping into any games. They'll show you
-
-//           how to use the sign-up sheets to get started playing games with us. You
-//           can stay for as long as you'd like and play as many games as you like.
-//         </p>
-//         <p>
-//           There's no need to bring a partner because you'll be playing with a
-//           different person every game, but feel welcome to bring a friend, just
-//           make sure they have also signed up on the website, completed the waiver,
-//           and have RSVP'd to the weekly post.
-//         </p>
-//         <p>
-//           If you have only played indoor volleyball,
-//           <a href="https://www.youtube.com/watch?v=FzO7EvB7mDE" style="color: #0066cc; text-decoration: underline;">
-//             here's a great video
-//           </a>
-//           that explains all the unique rules of 2v2 beach volleyball. The complete
-//           rules of 2v2 beach volleyball are posted on
-//           <a href="https://www.sandsharks.ca/member/rules" style="color: #0066cc; text-decoration: underline;">
-//             sandsharks.ca/member/rules
-//           </a>.
-//         </p>
-
-//         <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
-//           <p>
-//             If you have any questions, feel free to email me at
-//             <a href="mailto:sandsharks.org@gmail.com" style="color: #0066cc; text-decoration: underline;">sandsharks.org@gmail.com</a>.
-//           </p>
-//           <p>I'm looking forward to welcoming you into the group!</p>
-//           <p style="margin-bottom: 5px;">See you on the sand,</p>
-//           <p style="margin-top: 0; margin-bottom: 5px;"><strong>Cip</strong></p>
-//           <p style="margin-top: 0;">sandsharks.org@gmail.com</p>
-//         </div>
-//       </div>
-
-//       ${generateEmailFooter(memberData.id)}
-//     </div>`;
-
-//     // Initialize Resend
-//     const resend = new Resend(process.env.RESEND_API_KEY);
-
-//     // Send welcome email using Resend
-//     const { data, error } = await resend.emails.send({
-//       from: "Sandsharks <noreply@sandsharks.ca>", // Your verified domain
-//       reply_to: process.env.REPLY_TO_EMAIL, // Your Gmail address
-//       to: email,
-//       subject: subject,
-//       html: welcomeEmailHtml,
-//     });
-
-//     if (error) {
-//       console.error("Error sending welcome email:", error);
-//       // Continue with registration even if email fails
-//     }
-
-//     //remove password from the object
-//     let resultObj = {
-//       _id: memberData.id.toString(),
-//       firstName: memberData.first_name,
-//       lastName: memberData.last_name,
-//       email: memberData.email,
-//       memberType: memberData.member_type,
-//       pronouns: memberData.pronouns,
-//       createdAt: memberData.created_at,
-//     };
-
-//     // Create the session
-//     const expires = new Date(Date.now() + 10 * 60 * 1000);
-//     const session = await encrypt({ resultObj, expires });
-
-//     // Save the session in a cookie
-//     const cookieStore = await cookies();
-//     cookieStore.set("session", session, {
-//       expires,
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === "production",
-//       sameSite: "strict",
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     return {
-//       message:
-//         "Failed to register: make sure all required fields are completed and try again",
-//     };
-//   }
-
-//   revalidatePath("/");
-//   redirect("/dashboard/member");
-// }
-
-// export async function registerNewMember(prevState, formData) {
-//   // Convert the form data to an object
-//   const formDataObj = Object.fromEntries(formData.entries());
-
-//   // Normalize the email address
-//   formDataObj.email = formDataObj.email.toLowerCase().trim();
-
-//   // Capitalize the first letter of the first name and preferred name
-//   formDataObj.firstName =
-//     formDataObj.firstName.charAt(0).toUpperCase() +
-//     formDataObj.firstName.slice(1);
-
-//   // Validate the form data
-//   const result = MemberSchema.safeParse(formDataObj);
-
-//   if (result.error) {
-//     // Find the error related to the password length
-//     const passwordError = result.error.issues.find(
-//       (issue) =>
-//         issue.path[0] === "password" &&
-//         issue.type === "string" &&
-//         issue.minimum === 6
-//     );
-
-//     const confirmPasswordError = result.error.issues.find(
-//       (issue) =>
-//         issue.path[0] === "confirmPassword" &&
-//         issue.type === "string" &&
-//         issue.minimum === 6
-//     );
-
-//     // If the error exists, return a custom message
-//     if (passwordError) {
-//       return { password: "^ Password must be at least 6 characters long" };
-//     }
-
-//     if (confirmPasswordError) {
-//       return {
-//         confirmPassword:
-//           "^ Passwords must be at least 6 characters long and match",
-//       };
-//     }
-
-//     const emailError = result.error.issues.find((issue) => {
-//       return (
-//         issue.path[0] === "email" &&
-//         issue.validation === "email" &&
-//         issue.code === "invalid_string"
-//       );
-//     });
-
-//     if (emailError) {
-//       return { email: "^ Please enter a valid email address" };
-//     }
-
-//     if (!result.success) {
-//       return {
-//         message:
-//           "Failed to register: make sure all required fields are completed and try again",
-//       };
-//     }
-//   }
-
-//   const { firstName, lastName, pronouns, email, password, confirmPassword } =
-//     result.data;
-
-//   //check if passwords match
-//   if (password !== confirmPassword) {
-//     return { confirmPassword: "^ Passwords do not match" };
-//   }
-
-//   try {
-//     // Check if user already exists using PostgreSQL
-//     const existingUser = await sql`
-//       SELECT * FROM members WHERE email = ${email}
-//     `;
-
-//     if (existingUser.rows.length > 0) {
-//       return { email: "^ This email is already registered" };
-//     }
-
-//     const subject = "Welcome to Sandsharks!";
-//     const body = `<div>
-//       <h1>Hi ${firstName},</h1>
-//       <h2>Welcome to Sandsharks!</h2>
-//       <p>We are excited to have you join our community.</p>
-//       <p>
-//         My name is Cip, I run the league and I'm here to help you get started.
-//       </p>
-//       <p>
-//         Now that you're signed up, you can login at sandsharks.ca to check the
-//         weekly updates to see when we'll be playing. Once you login, you'll need to accept the waiver and agree to the code of conduct to continue.
-//       </p>
-
-//       <!-- Rest of the email body remains the same -->
-//     </div>`;
-
-//     const transport = nodemailer.createTransport({
-//       service: "gmail",
-//       auth: {
-//         user: process.env.SMTP_EMAIL,
-//         pass: process.env.SMTP_PASSWORD,
-//       },
-//     });
-
-//     try {
-//       const testResult = await transport.verify();
-//     } catch (error) {
-//       console.error("error", error);
-//       return { error: "Something went wrong, please try again." };
-//     }
-
-//     try {
-//       const sendResult = await transport.sendMail({
-//         from: process.env.SMTP_EMAIL,
-//         to: email,
-//         subject,
-//         html: body,
-//       });
-
-//       if (sendResult && sendResult.messageId) {
-//         console.log(`Email sent to ${email}`);
-//       } else {
-//         return { error: "Failed to send welcome email" };
-//       }
-//     } catch (error) {
-//       console.log(error);
-//       return { error: "Something went wrong. Please try again." };
-//     }
-
-//     //hash password
-//     const salt = await bcrypt.genSalt(10);
-//     const hashedPassword = await bcrypt.hash(password, salt);
-
-//     // Insert new user into PostgreSQL
-//     const newMember = await sql`
-//       INSERT INTO members (
-//         first_name,
-//         last_name,
-//         pronouns,
-//         email,
-//         member_type,
-//         password,
-//         created_at
-//       )
-//       VALUES (
-//         ${firstName},
-//         ${lastName},
-//         ${pronouns},
-//         ${email},
-//         ${"pending"},
-//         ${hashedPassword},
-//         ${new Date()}
-//       )
-//       RETURNING *
-//     `;
-
-//     // Get the inserted member data
-//     const memberData = newMember.rows[0];
-
-//     //remove password from the object
-//     let resultObj = {
-//       _id: memberData.id.toString(),
-//       firstName: memberData.first_name,
-//       lastName: memberData.last_name,
-//       email: memberData.email,
-//       memberType: memberData.member_type,
-//       pronouns: memberData.pronouns,
-//       createdAt: memberData.created_at,
-//     };
-
-//     // Create the session
-//     const expires = new Date(Date.now() + 10 * 60 * 1000);
-//     const session = await encrypt({ resultObj, expires });
-
-//     // Save the session in a cookie
-//     const cookieStore = await cookies();
-//     cookieStore.set("session", session, {
-//       expires,
-//       httpOnly: true,
-//       secure: process.env.NODE_ENV === "production",
-//       sameSite: "strict",
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     return {
-//       message:
-//         "Failed to register: make sure all required fields are completed and try again",
-//     };
-//   }
-
-//   revalidatePath("/");
-//   redirect("/");
-// }
-
-// export async function updateMemberProfile(prevState, formData) {
-//   const session = await getSession();
-//   if (!session) {
-//     return { message: "You must be logged in to update your profile." };
-//   }
-
-//   const { _id } = session.resultObj;
-
-//   const formDataObj = Object.fromEntries(formData.entries());
-//   console.log("formDataObj", formDataObj);
-
-//   // Normalize the email address
-//   formDataObj.email = formDataObj.email.toLowerCase().trim();
-
-//   // Capitalize the first letter of the first name and preferred name
-//   formDataObj.firstName =
-//     formDataObj.firstName.charAt(0).toUpperCase() +
-//     formDataObj.firstName.slice(1);
-
-//   const result = MemberUpdateFormSchema.safeParse(formDataObj);
-
-//   if (!result.success) {
-//     let message =
-//       "Failed to update profile: make sure all required fields are completed and try again.";
-
-//     const profilePicError = result.error.errors.find(
-//       (error) => error.path[0] === "profilePic" && error.code === "custom"
-//     );
-
-//     if (profilePicError) {
-//       message = profilePicError.message;
-//     }
-
-//     return { message };
-//   }
-
-//   const { firstName, lastName, pronouns, email, about } = result.data;
-
-//   //upload profile pic to google cloud storage
-
-//   let { profilePic } = formDataObj;
-
-//   const dbClient = await dbConnection;
-//   const db = await dbClient.db("Sandsharks");
-
-//   const member = await db
-//     .collection("members")
-//     .findOne({ _id: new ObjectId(_id) });
-
-//   if (!member) {
-//     return { message: "Member not found" };
-//   }
-
-//   let updatedProfilePic = member.profilePic; // get existingProfilePic from the member object
-
-//   let url;
-
-//   if (profilePic?.size > 0) {
-//     const buffer = await profilePic.arrayBuffer();
-//     if (buffer.byteLength > 5000000) {
-//       // limit file size to 5MB
-//       return { message: "Profile picture must be less than 5MB" };
-//     }
-
-//     // Convert ArrayBuffer to data URL
-//     const base64 = Buffer.from(buffer).toString("base64");
-//     const dataUrl = `data:image/jpeg;base64,${base64}`;
-
-//     // Configure Cloudinary
-//     cloudinary.config({
-//       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-//       api_key: process.env.CLOUDINARY_API_KEY,
-//       api_secret: process.env.CLOUDINARY_API_SECRET,
-//     });
-
-//     const result = await new Promise((resolve, reject) => {
-//       cloudinary.uploader.upload(
-//         dataUrl,
-//         { public_id: `${_id}-${Date.now()}`, resource_type: "auto" },
-//         function (error, result) {
-//           if (error) {
-//             reject(error);
-//           } else {
-//             resolve(result);
+//       profilePic: memberData.profile_pic_url
+//         ? {
+//             url: memberData.profile_pic_url,
+//             status: memberData.profile_pic_status,
 //           }
-//         }
-//       );
+//         : null,
+//       instagramHandle: memberData.instagram_handle,
+//     };
+
+//     // Create the session
+//     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+//     const session = await encrypt({ resultObj, expires });
+
+//     // Save the session in a cookie
+//     const cookieStore = await cookies();
+//     cookieStore.set("session", session, {
+//       expires,
+//       httpOnly: true,
+//       secure: process.env.NODE_ENV === "production",
+//       sameSite: "strict",
 //     });
-
-//     url = result.secure_url;
-//     updatedProfilePic = { status: "pending", url: url };
-//   }
-
-//   // Update the member with the profile picture URL and other fields
-//   await db.collection("members").updateOne(
-//     { _id: new ObjectId(_id) },
-//     {
-//       $set: {
-//         firstName,
-//         lastName,
-//         pronouns,
-//         email,
-//         about,
-//         profilePic: updatedProfilePic,
-//       },
-//     }
-//   );
-
-//   revalidatePath("/dashboard/member");
-//   redirect("/");
-// }
-
-// export async function approveMemberProfile(memberId) {
-//   const session = await getSession();
-//   if (session?.resultObj?.memberType !== "ultrashark") {
-//     return { message: "You must be logged in to approve a member" };
-//   }
-
-//   try {
-//     const dbClient = await dbConnection;
-//     const db = await dbClient.db("Sandsharks");
-//     await db
-//       .collection("members")
-//       .updateOne(
-//         { _id: new ObjectId(memberId) },
-//         { $set: { memberType: "member" } }
-//       );
-
-//     revalidatePath("/dashboard/ultrashark/members");
-//     return { message: "Member approved" };
 //   } catch (error) {
-//     console.error(error);
+//     console.log(error);
+//     return {
+//       message:
+//         "Failed to register: make sure all required fields are completed and try again",
+//     };
 //   }
+
+//   revalidatePath("/");
+//   redirect("/dashboard/member");
 // }
 
-// export async function deactivateMemberProfile(memberId) {
-//   const session = await getSession();
-//   if (session?.resultObj?.memberType !== "ultrashark") {
-//     return { message: "You must be logged in to deactivate a member" };
-//   }
+export async function confirmWelcomeRead(prevState, formData) {
+  try {
+    const userId = formData.get("userId")
 
-//   try {
-//     const dbClient = await dbConnection;
-//     const db = await dbClient.db("Sandsharks");
-//     await db
-//       .collection("members")
-//       .updateOne(
-//         { _id: new ObjectId(memberId) },
-//         { $set: { memberType: "pending" } }
-//       );
+    if (!userId) {
+      return { success: false, message: "User ID is required" }
+    }
 
-//     //send an email to the member that their profile has been deactived, give a reason why?
+    // Update the members table with the confirmation date
+    await sql`
+      UPDATE members
+      SET welcome_confirmed = ${new Date()}
+      WHERE id = ${userId}
+    `
 
-//     revalidatePath("/dashboard/ultrashark/members");
-//     return { message: "Member deactivated" };
-//   } catch (error) {
-//     console.error(error);
-//   }
-// }
-
-// export async function deleteMemberProfile(memberId) {
-//   const session = await getSession();
-//   if (session?.resultObj?.memberType !== "ultrashark") {
-//     return { message: "You must be logged in to delete a member" };
-//   }
-
-//   try {
-//     const dbClient = await dbConnection;
-//     const db = await dbClient.db("Sandsharks");
-//     await db.collection("members").deleteOne({ _id: new ObjectId(memberId) });
-
-//     revalidatePath("/dashboard/ultrashark/members");
-//     return { message: "Member deleted" };
-//   } catch (error) {
-//     console.error(error);
-//   }
-// }
-
-// export async function approveMemberPhoto(memberId) {
-//   const session = await getSession();
-//   if (session?.resultObj?.memberType !== "ultrashark") {
-//     return { message: "You must be logged in to approve a photo" };
-//   }
-
-//   try {
-//     const dbClient = await dbConnection;
-//     const db = await dbClient.db("Sandsharks");
-//     await db
-//       .collection("members")
-//       .updateOne(
-//         { _id: new ObjectId(memberId) },
-//         { $set: { "profilePic.status": "approved" } }
-//       );
-
-//     revalidatePath("/dashboard/ultrashark/members");
-//     return { message: "Photo approved" };
-//   } catch (error) {
-//     console.error(error);
-//   }
-// }
-
-// export async function disapproveMemberPhoto(memberId) {
-//   const session = await getSession();
-//   if (session?.resultObj?.memberType !== "ultrashark") {
-//     return { message: "You must be logged in to disapprove a photo" };
-//   }
-
-//   try {
-//     const dbClient = await dbConnection;
-//     const db = await dbClient.db("Sandsharks");
-//     await db
-//       .collection("members")
-//       .updateOne(
-//         { _id: new ObjectId(memberId) },
-//         { $set: { "profilePic.status": "disapproved" } }
-//       );
-
-//     revalidatePath("/dashboard/ultrashark/members");
-//     return { message: "Photo disapproved" };
-//   } catch (error) {
-//     console.error(error);
-//   }
-// }
+    revalidatePath("/dashboard/member")
+    return { success: true, message: "Thanks for reading! You're all set for the season." }
+  } catch (error) {
+    console.error("Error confirming welcome read:", error)
+    return { success: false, message: "Failed to confirm. Please try again." }
+  }
+}
 
 export async function sendPasswordReset(prevState, formData) {
   const to = formData.get("email").toLowerCase().trim();
@@ -1282,7 +638,9 @@ export async function sendPasswordReset(prevState, formData) {
 
     // Create the reset URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
-    const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(token)}`;
+    const resetURL = `http://localhost:3000/password-reset/set-new-password/${encodeURIComponent(token)}`;
+
+    // const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(token)}`;
 
     const emailResult = await sendEmail({
       to: to,
@@ -1326,167 +684,46 @@ export async function sendPasswordReset(prevState, formData) {
   }
 }
 
-// export async function sendPasswordReset(prevState, formData) {
-//   const { SMTP_EMAIL, SMTP_PASSWORD } = process.env;
-//   const to = formData.get("email").toLowerCase().trim();
-
-//   try {
-//     // Check if the email is in the database
-//     const memberResult = await sql`
-//       SELECT id, first_name, last_name
-//       FROM members
-//       WHERE email = ${to}
-//     `;
-
-//     // If no member found, still return a success message for security
-//     if (memberResult.rows.length === 0) {
-//       return {
-//         message:
-//           "If this email is registered, a link to reset your password will be sent to this email address.",
-//       };
-//     }
-
-//     const member = memberResult.rows[0];
-
-//     // Generate a secure random token
-//     const crypto = require("crypto");
-//     const token = crypto.randomBytes(20).toString("hex");
-
-//     // Create expiration time (1 hour from now) as Unix timestamp (milliseconds)
-//     const tokenExpires = Date.now() + 3600000; // 1 hour in milliseconds
-
-//     // Save the token and expiration to the database
-//     await sql`
-//       UPDATE members
-//       SET
-//         password_reset_token = ${token},
-//         password_reset_expires = ${tokenExpires}
-//       WHERE id = ${member.id}
-//     `;
-
-//     // Create the reset URL
-//     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
-//     const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(
-//       token
-//     )}`;
-
-//     // Create email content
-//     const subject = "Sandsharks Password Reset Request";
-//     const body = `
-//       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-//         <div style="background-color: #ff6600; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-//           <img src="${baseUrl}/images/sandsharks-rainbow-icon.svg" alt="Sandsharks Logo" style="height: 60px; margin-bottom: 10px;">
-//           <h1 style="color: white; margin: 0;">Password Reset Request</h1>
-//         </div>
-
-//         <div style="padding: 20px; background-color: #ffffff; border-left: 1px solid #ddd; border-right: 1px solid #ddd;">
-//           <p style="font-size: 16px;">Hello ${member.first_name || "there"}!</p>
-
-//           <p>You, or someone else, has requested to reset your password for your Sandsharks account.</p>
-
-//           <div style="margin: 30px 0; text-align: center;">
-//             <a href="${resetURL}" style="background-color: #ff6600; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">
-//               Reset Your Password
-//             </a>
-//           </div>
-
-//           <p><strong>Important:</strong> This link will expire in 1 hour.</p>
-
-//           <p>If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
-
-//           <p style="margin-top: 30px;">See you on the sand!</p>
-//         </div>
-
-//         <div style="background-color: #f5f5f5; padding: 15px; text-align: center; font-size: 12px; color: #666666; border-radius: 0 0 8px 8px; border: 1px solid #ddd; border-top: none;">
-//           <p>
-//             This is an automated email sent from Sandsharks Beach Volleyball.
-//           </p>
-//         </div>
-//       </div>
-//     `;
-
-//     // Set up email transport
-//     const { Resend } = await import("resend");
-//     const resend = new Resend(process.env.RESEND_API_KEY);
-
-//     // Send the email
-//     const emailResult = await resend.emails.send({
-//       from: "Sandsharks <notifications@sandsharks.ca>",
-//       to: to,
-//       reply_to: "sandsharks.org@gmail.com",
-//       subject: subject,
-//       html: body,
-//     });
-
-//     if (emailResult.error) {
-//       console.error("Error sending password reset email:", emailResult.error);
-
-//       // Remove token from database if email sending failed
-//       await sql`
-//         UPDATE members
-//         SET
-//           password_reset_token = NULL,
-//           password_reset_expires = NULL
-//         WHERE id = ${member.id}
-//       `;
-
-//       return {
-//         error: "Failed to send reset link. Please try again.",
-//       };
-//     }
-
-//     return {
-//       message:
-//         "If this email is registered, a link to reset your password will be sent to this email address. Check your inbox, junk mail, and spam folders.",
-//     };
-//   } catch (error) {
-//     console.error("Error in password reset:", error);
-//     return {
-//       error: "Something went wrong. Please try again.",
-//     };
-//   }
-// }
-
 export async function setNewPassword(prevState, formData) {
   try {
-    const token = formData.get("token");
-    const password = formData.get("password");
-    const confirmPassword = formData.get("confirmPassword");
+    const token = formData.get("token")
+    const password = formData.get("password")
+    const confirmPassword = formData.get("confirmPassword")
 
     // Validate passwords
     if (!password || password.length < 6) {
       return {
         error: "Password must be at least 6 characters long.",
-      };
+      }
     }
 
     if (password !== confirmPassword) {
       return {
         error: "Passwords do not match.",
-      };
+      }
     }
 
     // Find the member with this token and check if it's still valid
-    const now = Date.now(); // Current time in milliseconds
+    const now = Date.now() // Current time in milliseconds
     const memberResult = await sql`
-      SELECT id, email
+      SELECT id, email, first_name
       FROM members
       WHERE 
         password_reset_token = ${token}
         AND password_reset_expires > ${now}
-    `;
+    `
 
     if (memberResult.rows.length === 0) {
       return {
         error: "Password reset token is invalid or has expired.",
-      };
+      }
     }
 
-    const member = memberResult.rows[0];
+    const member = memberResult.rows[0]
 
     // Hash the new password using the imported bcryptjs
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const salt = await bcrypt.genSalt(10)
+    const hashedPassword = await bcrypt.hash(password, salt)
 
     // Update the member's password and clear the reset token
     await sql`
@@ -1496,19 +733,98 @@ export async function setNewPassword(prevState, formData) {
         password_reset_token = NULL,
         password_reset_expires = NULL
       WHERE id = ${member.id}
-    `;
+    `
+
+    // Send confirmation email
+    try {
+      await sendEmail({
+        to: member.email,
+        subject: "Your Sandsharks Password Has Been Reset",
+        templateName: "passwordResetConfirmation",
+        templateData: {
+          firstName: member.first_name,
+          memberId: member.id.toString(),
+        },
+        replyTo: "sandsharks.org@gmail.com",
+      })
+    } catch (emailError) {
+      console.error("Error sending password reset confirmation email:", emailError)
+      // Continue with the password reset process even if the email fails
+    }
 
     return {
-      message:
-        "Your password has been reset successfully. You can now log in with your new password.",
-    };
+      message: "Your password has been reset successfully. You can now log in with your new password.",
+    }
   } catch (error) {
-    console.error("Error setting new password:", error);
+    console.error("Error setting new password:", error)
     return {
       error: "Something went wrong. Please try again.",
-    };
+    }
   }
 }
+
+// export async function setNewPassword(prevState, formData) {
+//   try {
+//     const token = formData.get("token");
+//     const password = formData.get("password");
+//     const confirmPassword = formData.get("confirmPassword");
+
+//     // Validate passwords
+//     if (!password || password.length < 6) {
+//       return {
+//         error: "Password must be at least 6 characters long.",
+//       };
+//     }
+
+//     if (password !== confirmPassword) {
+//       return {
+//         error: "Passwords do not match.",
+//       };
+//     }
+
+//     // Find the member with this token and check if it's still valid
+//     const now = Date.now(); // Current time in milliseconds
+//     const memberResult = await sql`
+//       SELECT id, email
+//       FROM members
+//       WHERE 
+//         password_reset_token = ${token}
+//         AND password_reset_expires > ${now}
+//     `;
+
+//     if (memberResult.rows.length === 0) {
+//       return {
+//         error: "Password reset token is invalid or has expired.",
+//       };
+//     }
+
+//     const member = memberResult.rows[0];
+
+//     // Hash the new password using the imported bcryptjs
+//     const salt = await bcrypt.genSalt(10);
+//     const hashedPassword = await bcrypt.hash(password, salt);
+
+//     // Update the member's password and clear the reset token
+//     await sql`
+//       UPDATE members
+//       SET 
+//         password = ${hashedPassword},
+//         password_reset_token = NULL,
+//         password_reset_expires = NULL
+//       WHERE id = ${member.id}
+//     `;
+
+//     return {
+//       message:
+//         "Your password has been reset successfully. You can now log in with your new password.",
+//     };
+//   } catch (error) {
+//     console.error("Error setting new password:", error);
+//     return {
+//       error: "Something went wrong. Please try again.",
+//     };
+//   }
+// }
 
 ///////////////////////////////////////////////
 //-------------------POSTS-------------------//

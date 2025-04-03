@@ -1,4 +1,3 @@
-// components/MembershipButton.jsx (client component)
 "use client";
 
 import { useState } from "react";

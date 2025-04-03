@@ -40,7 +40,7 @@ function DonationSuccessContent() {
     <div className="text-center">
       {status === "processing" && (
         <>
-          <h1 className="text-2xl font-bold text-blue-600 mb-4">
+          <h1 className="text-2xl font-bold text-sandsharks-blue mb-4">
             Processing Your Donation
           </h1>
           <p className="mb-6">Please wait while we confirm your donation...</p>
@@ -60,12 +60,15 @@ function DonationSuccessContent() {
 
       {status === "success" && (
         <>
-          <h1 className="text-2xl font-bold text-green-600 mb-4">
+          <h1 className="text-2xl font-bold text-sandsharks-blue mb-4">
             Thank You for Your Donation!
           </h1>
           <p className="mb-6">
             Your generous contribution helps keep Sandsharks running. :)
           </p>
+          <Link href="/dashboard/member" className="btn mt-4 inline-block">
+        Return to Dashboard
+      </Link>
         </>
       )}
 
@@ -81,9 +84,7 @@ function DonationSuccessContent() {
         </>
       )}
 
-      <Link href="/dashboard/member" className="btn mt-4 inline-block">
-        Return to Dashboard
-      </Link>
+      
     </div>
   );
 }
