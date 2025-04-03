@@ -1,122 +1,108 @@
-"use client";
+"use client"
 
-import { useRef, useEffect } from "react";
-import Image from "next/image";
+import { useRef, useEffect } from "react"
+import Image from "next/image"
 
 // Define shared state directly in this file - using a mutable object instead of primitive
 export const hoverState = {
   hoverStates: new Map(),
   activeModalId: null,
-};
+}
 
-const MemberProfileModal = ({
-  member,
-  position,
-  isVisible,
-  onClose,
-  isMobile,
-  uniqueId,
-}) => {
-  const modalRef = useRef(null);
-  const closeTimeoutRef = useRef(null);
+const MemberProfileModal = ({ member, position, isVisible, onClose, isMobile, uniqueId }) => {
+  const modalRef = useRef(null)
+  const closeTimeoutRef = useRef(null)
 
   // Handle click outside to close modal
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
-        isVisible &&
-        modalRef.current &&
-        !modalRef.current.contains(event.target)
-      ) {
-        onClose();
-        hoverState.hoverStates.delete(uniqueId);
+      if (isVisible && modalRef.current && !modalRef.current.contains(event.target)) {
+        onClose()
+        hoverState.hoverStates.delete(uniqueId)
         if (hoverState.activeModalId === uniqueId) {
-          hoverState.activeModalId = null;
+          hoverState.activeModalId = null
         }
         if (closeTimeoutRef.current) {
-          clearTimeout(closeTimeoutRef.current);
+          clearTimeout(closeTimeoutRef.current)
         }
       }
-    };
+    }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside)
     document.addEventListener("touchstart", handleClickOutside, {
       passive: true,
-    });
+    })
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-    };
-  }, [isVisible, uniqueId, onClose]);
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("touchstart", handleClickOutside)
+    }
+  }, [isVisible, uniqueId, onClose])
 
   // Handle scroll events to close modal
   useEffect(() => {
     const handleScroll = () => {
       if (isVisible) {
-        onClose();
-        hoverState.hoverStates.delete(uniqueId);
+        onClose()
+        hoverState.hoverStates.delete(uniqueId)
         if (hoverState.activeModalId === uniqueId) {
-          hoverState.activeModalId = null;
+          hoverState.activeModalId = null
         }
         if (closeTimeoutRef.current) {
-          clearTimeout(closeTimeoutRef.current);
+          clearTimeout(closeTimeoutRef.current)
         }
       }
-    };
+    }
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [isVisible, uniqueId, onClose]);
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [isVisible, uniqueId, onClose])
 
   // Handle modal mouse enter
   const handleModalMouseEnter = () => {
-    if (isMobile) return; // Skip on mobile
+    if (isMobile) return // Skip on mobile
 
     // Clear any pending close timeout
     if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
     }
 
-    hoverState.hoverStates.set(uniqueId, true);
-  };
+    hoverState.hoverStates.set(uniqueId, true)
+  }
 
   // Handle modal mouse leave - with a short delay for closing
   const handleModalMouseLeave = () => {
-    if (isMobile) return; // Skip on mobile
-    hoverState.hoverStates.delete(uniqueId);
+    if (isMobile) return // Skip on mobile
+    hoverState.hoverStates.delete(uniqueId)
 
     // Set a short delay before closing
     closeTimeoutRef.current = setTimeout(() => {
-      if (
-        !hoverState.hoverStates.get(uniqueId) &&
-        hoverState.activeModalId === uniqueId
-      ) {
-        onClose();
-        hoverState.activeModalId = null;
+      if (!hoverState.hoverStates.get(uniqueId) && hoverState.activeModalId === uniqueId) {
+        onClose()
+        hoverState.activeModalId = null
       }
-    }, 150); // 150ms delay - short but enough to move back to profile if needed
-  };
+    }, 150) // 150ms delay - short but enough to move back to profile if needed
+  }
 
   // Get Instagram handle if available
   const getInstagramHandle = (instagramUrl) => {
-    if (!instagramUrl) return null;
+    if (!instagramUrl) return null
 
     // If it's already a handle (no http/https), just return it
     if (!instagramUrl.includes("http")) {
-      return instagramUrl.replace("@", "");
+      return instagramUrl.replace("@", "")
     }
 
     try {
       // Try to extract from URL
-      const url = new URL(instagramUrl);
-      return url.pathname.replace(/^\/|\/$/g, "");
+      const url = new URL(instagramUrl)
+      return url.pathname.replace(/^\/|\/$/g, "")
     } catch (e) {
       // If not a valid URL, just return as is (might already be a handle)
-      return instagramUrl.replace("@", "");
+      return instagramUrl.replace("@", "")
     }
-  };
+  }
 
   // Get profile picture URL
   const getProfilePicUrl = () => {
@@ -126,10 +112,10 @@ const MemberProfileModal = ({
       (member?.profilePic?.status === "approved" && member?.profilePic?.url) ||
       member?.pic ||
       "/images/sandsharks-rainbow-icon.svg"
-    );
-  };
+    )
+  }
 
-  if (!isVisible) return null;
+  if (!isVisible) return null
 
   return (
     <div
@@ -150,14 +136,14 @@ const MemberProfileModal = ({
         <button
           className="absolute top-2 right-2 z-10 bg-gray-200 rounded-full p-1"
           onClick={(e) => {
-            e.stopPropagation();
-            onClose();
+            e.stopPropagation()
+            onClose()
             if (hoverState.activeModalId === uniqueId) {
-              hoverState.activeModalId = null;
+              hoverState.activeModalId = null
             }
-            hoverState.hoverStates.delete(uniqueId);
+            hoverState.hoverStates.delete(uniqueId)
             if (closeTimeoutRef.current) {
-              clearTimeout(closeTimeoutRef.current);
+              clearTimeout(closeTimeoutRef.current)
             }
           }}
         >
@@ -198,9 +184,7 @@ const MemberProfileModal = ({
                 {member?.firstName} {member?.lastName}
               </h2>
 
-              {member?.pronouns && (
-                <p className="text-gray-600 text-sm">{member.pronouns}</p>
-              )}
+              {member?.pronouns && <p className="text-gray-600 text-sm">{member.pronouns}</p>}
             </div>
           </div>
 
@@ -244,10 +228,12 @@ const MemberProfileModal = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default MemberProfileModal;
+export default MemberProfileModal
+
+
 
 // "use client"
 

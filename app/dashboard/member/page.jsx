@@ -13,7 +13,11 @@ const MemberDash = async () => {
 
   // If waiver is not valid, show the waiver
   if (!hasValidWaiver) {
-    return <Waiver isRenewal={user?.waiverConfirmed} />
+    return (
+    <section>
+      <Waiver isRenewal={user?.waiverConfirmed} />
+    </section>
+    )
   }
 
   // Check if we need to show the welcome message
@@ -22,11 +26,12 @@ const MemberDash = async () => {
 
   // If welcome message is needed, show it
   if (needsWelcome) {
-    return <WelcomeSeason userId={user.id} currentYear={currentYear} />
+
+    return (<section><WelcomeSeason userId={user.id} currentYear={currentYear} /></section>)
   }
 
   // Otherwise, show the dashboard
-  return <MemberDashboard user={user} playDays={playDays} />
+  return (<section><MemberDashboard user={user} playDays={playDays} /></section>)
 }
 
 // Updated helper function to check if waiver is valid for the current calendar year
