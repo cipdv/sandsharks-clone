@@ -98,7 +98,9 @@ const Navbar = ({ currentUser }) => {
               }`}
             ></div>
             <div
-              className={`w-6 h-0.5 bg-[#17677a] mb-1.5 transition-opacity ${isMenuOpen ? "opacity-0" : "opacity-100"}`}
+              className={`w-6 h-0.5 bg-[#17677a] mb-1.5 transition-opacity ${
+                isMenuOpen ? "opacity-0" : "opacity-100"
+              }`}
             ></div>
             <div
               className={`w-6 h-0.5 bg-[#17677a] transition-transform ${
@@ -245,13 +247,13 @@ const Navbar = ({ currentUser }) => {
                 >
                   League History
                 </Link>
-                <Link
+                {/* <Link
                   href="/donations"
                   className="py-2 hover:bg-gray-100 rounded pl-2"
                   onClick={closeMenu}
                 >
                   Donations
-                </Link>
+                </Link> */}
                 <Link
                   href="/rules"
                   className="py-2 hover:bg-gray-100 rounded pl-2"
