@@ -137,7 +137,6 @@ function renderSeasonAnnouncementEmail() {
           </div>
           
           <div class="email-footer">
-            <p>© ${new Date().getFullYear()} Toronto Sandsharks. All rights reserved.</p>
             <p><a href="${baseUrl}/unsubscribe" style="color: #666666; text-decoration: underline;">Unsubscribe from emails</a></p>
           </div>
         </div>
