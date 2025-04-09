@@ -189,9 +189,9 @@ export async function GET(request) {
     // Send a single email with all recipients in BCC
     const { data, error } = await resend.emails.send({
       from: "Sandsharks <sandsharks@sandsharks.ca>",
-      to: "cip.devries@gmail.com",
-      bcc: "cdvsignupspare@gmail.com",
-      subject: "Sandsharks 2025 Season Announcement - Please Read :)",
+      to: toEmail,
+      bcc: bccList,
+      subject: "Sandsharks 2025 Season Announcement! - Please Read :)",
       html: emailHtml,
     });
 
