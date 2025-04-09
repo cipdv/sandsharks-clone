@@ -14,9 +14,6 @@ const initialState = {
 };
 
 export default function MemberProfileUpdate({ user }) {
-  
-
-  console.log('user memberprofile', user)
   const router = useRouter();
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [aboutCount, setAboutCount] = useState(
@@ -81,7 +78,11 @@ export default function MemberProfileUpdate({ user }) {
 
       {state.message && (
         <div
-          className={`mb-6 p-4 rounded-md ${state.success ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+          className={`mb-6 p-4 rounded-md ${
+            state.success
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
+          }`}
         >
           {state.message}
           {state.success && (

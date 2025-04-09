@@ -35,10 +35,10 @@ export async function handleLogout() {
 export async function getCurrentUser() {
   try {
     // Get the session
-    const session = await getSession()
+    const session = await getSession();
 
     if (session?.resultObj?._id) {
-      const userId = session.resultObj._id
+      const userId = session.resultObj._id;
 
       // Get the user data from the database
       const userData = await sql`
@@ -64,7 +64,7 @@ export async function getCurrentUser() {
           members 
         WHERE 
           id = ${userId}
-      `
+      `;
 
       if (userData.rows.length > 0) {
         // Convert from snake_case to camelCase for frontend consistency
@@ -90,19 +90,17 @@ export async function getCurrentUser() {
           lastDonationDate: userData.rows[0].last_donation_date || null,
           emailList: userData.rows[0].email_list || false,
           photoConsent: userData.rows[0].photo_consent || false,
-          instagramHandle: userData.rows[0].instagram_handle || null
-        }
+          instagramHandle: userData.rows[0].instagram_handle || null,
+        };
 
-        console.log('current user', currentUser)
-
-        return currentUser
+        return currentUser;
       }
     }
 
-    return null
+    return null;
   } catch (error) {
-    console.error("Error getting current user:", error)
-    return null
+    console.error("Error getting current user:", error);
+    return null;
   }
 }
 // export async function getCurrentUser() {
@@ -115,24 +113,24 @@ export async function getCurrentUser() {
 
 //       // Get the user data from the database
 //       const userData = await sql`
-//         SELECT 
-//           id, 
-//           first_name, 
-//           last_name, 
-//           email, 
-//           member_type, 
-//           pronouns, 
-//           about, 
-//           profile_pic_url, 
-//           profile_pic_status, 
-//           created_at, 
-//           waiver_confirmed, 
+//         SELECT
+//           id,
+//           first_name,
+//           last_name,
+//           email,
+//           member_type,
+//           pronouns,
+//           about,
+//           profile_pic_url,
+//           profile_pic_status,
+//           created_at,
+//           waiver_confirmed,
 //           waiver_confirmed_at,
 //           welcome_confirmed,
 //           last_donation_date
-//         FROM 
-//           members 
-//         WHERE 
+//         FROM
+//           members
+//         WHERE
 //           id = ${userId}
 //       `
 
@@ -173,101 +171,118 @@ export async function getCurrentUser() {
 
 export async function registerNewMember(prevState, formData) {
   // Convert the form data to an object
-  const formDataObj = Object.fromEntries(formData.entries())
+  const formDataObj = Object.fromEntries(formData.entries());
 
   // Normalize the email address
-  formDataObj.email = formDataObj.email.toLowerCase().trim()
+  formDataObj.email = formDataObj.email.toLowerCase().trim();
 
   // Capitalize the first letter of the first name and preferred name
-  formDataObj.firstName = formDataObj.firstName.charAt(0).toUpperCase() + formDataObj.firstName.slice(1)
+  formDataObj.firstName =
+    formDataObj.firstName.charAt(0).toUpperCase() +
+    formDataObj.firstName.slice(1);
 
   // Validate the form data
-  const result = MemberSchema.safeParse(formDataObj)
+  const result = MemberSchema.safeParse(formDataObj);
 
   if (result.error) {
     // Find the error related to the password length
     const passwordError = result.error.issues.find(
-      (issue) => issue.path[0] === "password" && issue.type === "string" && issue.minimum === 6,
-    )
+      (issue) =>
+        issue.path[0] === "password" &&
+        issue.type === "string" &&
+        issue.minimum === 6
+    );
 
     const confirmPasswordError = result.error.issues.find(
-      (issue) => issue.path[0] === "confirmPassword" && issue.type === "string" && issue.minimum === 6,
-    )
+      (issue) =>
+        issue.path[0] === "confirmPassword" &&
+        issue.type === "string" &&
+        issue.minimum === 6
+    );
 
     // If the error exists, return a custom message
     if (passwordError) {
-      return { password: "^ Password must be at least 6 characters long" }
+      return { password: "^ Password must be at least 6 characters long" };
     }
 
     if (confirmPasswordError) {
       return {
-        confirmPassword: "^ Passwords must be at least 6 characters long and match",
-      }
+        confirmPassword:
+          "^ Passwords must be at least 6 characters long and match",
+      };
     }
 
     const emailError = result.error.issues.find((issue) => {
-      return issue.path[0] === "email" && issue.validation === "email" && issue.code === "invalid_string"
-    })
+      return (
+        issue.path[0] === "email" &&
+        issue.validation === "email" &&
+        issue.code === "invalid_string"
+      );
+    });
 
     if (emailError) {
-      return { email: "^ Please enter a valid email address" }
+      return { email: "^ Please enter a valid email address" };
     }
 
     if (!result.success) {
       return {
-        message: "Failed to register: make sure all required fields are completed and try again",
-      }
+        message:
+          "Failed to register: make sure all required fields are completed and try again",
+      };
     }
   }
 
-  const { firstName, lastName, pronouns, email, password, confirmPassword } = result.data
+  const { firstName, lastName, pronouns, email, password, confirmPassword } =
+    result.data;
 
   //check if passwords match
   if (password !== confirmPassword) {
-    return { confirmPassword: "^ Passwords do not match" }
+    return { confirmPassword: "^ Passwords do not match" };
   }
 
   try {
     // Check if user already exists using PostgreSQL
     const existingUser = await sql`
       SELECT * FROM members WHERE email = ${email}
-    `
+    `;
 
     if (existingUser.rows.length > 0) {
-      return { email: "^ This email is already registered" }
+      return { email: "^ This email is already registered" };
     }
 
     //hash password
-    const salt = await bcrypt.genSalt(10)
-    const hashedPassword = await bcrypt.hash(password, salt)
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     // Get the profile picture data URL if it exists
-    const profilePictureDataUrl = formData.get("profilePictureDataUrl")
-    let profilePicUrl = null
-    let profilePicStatus = null
+    const profilePictureDataUrl = formData.get("profilePictureDataUrl");
+    let profilePicUrl = null;
+    let profilePicStatus = null;
 
     // If a profile picture was uploaded, process it
     if (profilePictureDataUrl) {
       // Convert data URL to a Buffer
-      const base64Data = profilePictureDataUrl.split(",")[1]
-      const buffer = Buffer.from(base64Data, "base64")
+      const base64Data = profilePictureDataUrl.split(",")[1];
+      const buffer = Buffer.from(base64Data, "base64");
 
       // Upload the profile picture to Vercel Blob
-      const { put } = await import("@vercel/blob")
-      const filename = `profile-pic-signup-${Date.now()}.jpg`
+      const { put } = await import("@vercel/blob");
+      const filename = `profile-pic-signup-${Date.now()}.jpg`;
 
       const blob = await put(filename, buffer, {
         access: "public",
         contentType: "image/jpeg",
-      })
+      });
 
-      profilePicUrl = blob.url
-      profilePicStatus = "pending" // Set status to pending for admin approval
+      profilePicUrl = blob.url;
+      profilePicStatus = "pending"; // Set status to pending for admin approval
     }
 
     // Get and clean Instagram handle
-    const instagramHandle = formData.get("instagramHandle")
-    const cleanedInstagramHandle = instagramHandle ? instagramHandle.trim().replace(/^@/, "") : null
+    const instagramHandle = formData.get("instagramHandle");
+    const cleanedInstagramHandle = instagramHandle
+      ? instagramHandle.trim().replace(/^@/, "")
+      : null;
 
     // Insert new user into PostgreSQL with profile picture if provided
     const newMember = await sql`
@@ -298,10 +313,10 @@ export async function registerNewMember(prevState, formData) {
         ${cleanedInstagramHandle}
       )
       RETURNING *
-    `
+    `;
 
     // Get the inserted member data
-    const memberData = newMember.rows[0]
+    const memberData = newMember.rows[0];
 
     // Use the new email template system to send the welcome email
     // const { sendEmail } = await import("@/lib/email-sender");
@@ -316,10 +331,10 @@ export async function registerNewMember(prevState, formData) {
         currentYear: new Date().getFullYear(),
       },
       replyTo: process.env.REPLY_TO_EMAIL,
-    })
+    });
 
     if (!emailResult.success) {
-      console.error("Error sending welcome email:", emailResult.error)
+      console.error("Error sending welcome email:", emailResult.error);
       // Continue with registration even if email fails
     }
 
@@ -340,29 +355,30 @@ export async function registerNewMember(prevState, formData) {
           }
         : null,
       instagramHandle: memberData.instagram_handle,
-    }
+    };
 
     // Create the session
-    const expires = new Date(Date.now() + 10 * 60 * 1000)
-    const session = await encrypt({ resultObj, expires })
+    const expires = new Date(Date.now() + 10 * 60 * 1000);
+    const session = await encrypt({ resultObj, expires });
 
     // Save the session in a cookie
-    const cookieStore = await cookies()
+    const cookieStore = await cookies();
     cookieStore.set("session", session, {
       expires,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-    })
+    });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     return {
-      message: "Failed to register: make sure all required fields are completed and try again",
-    }
+      message:
+        "Failed to register: make sure all required fields are completed and try again",
+    };
   }
 
-  revalidatePath("/")
-  redirect("/dashboard/member")
+  revalidatePath("/");
+  redirect("/dashboard/member");
 }
 
 // export async function registerNewMember(prevState, formData) {
@@ -483,25 +499,25 @@ export async function registerNewMember(prevState, formData) {
 //     // Insert new user into PostgreSQL with profile picture if provided
 //     const newMember = await sql`
 //       INSERT INTO members (
-//         first_name, 
-//         last_name, 
-//         pronouns, 
-//         email, 
-//         member_type, 
-//         password, 
+//         first_name,
+//         last_name,
+//         pronouns,
+//         email,
+//         member_type,
+//         password,
 //         created_at,
 //         email_list,
 //         profile_pic_url,
 //         profile_pic_status,
 //         instagram_handle
-//       ) 
+//       )
 //       VALUES (
-//         ${firstName}, 
-//         ${lastName}, 
-//         ${pronouns}, 
-//         ${email}, 
-//         ${"pending"}, 
-//         ${hashedPassword}, 
+//         ${firstName},
+//         ${lastName},
+//         ${pronouns},
+//         ${email},
+//         ${"pending"},
+//         ${hashedPassword},
 //         ${new Date()},
 //         ${true},
 //         ${profilePicUrl},
@@ -553,7 +569,7 @@ export async function registerNewMember(prevState, formData) {
 //     };
 
 //     // Create the session
-//     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); 
+//     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 //     const session = await encrypt({ resultObj, expires });
 
 //     // Save the session in a cookie
@@ -578,10 +594,10 @@ export async function registerNewMember(prevState, formData) {
 
 export async function confirmWelcomeRead(prevState, formData) {
   try {
-    const userId = formData.get("userId")
+    const userId = formData.get("userId");
 
     if (!userId) {
-      return { success: false, message: "User ID is required" }
+      return { success: false, message: "User ID is required" };
     }
 
     // Update the members table with the confirmation date
@@ -589,13 +605,16 @@ export async function confirmWelcomeRead(prevState, formData) {
       UPDATE members
       SET welcome_confirmed = ${new Date()}
       WHERE id = ${userId}
-    `
+    `;
 
-    revalidatePath("/dashboard/member")
-    return { success: true, message: "Thanks for reading! You're all set for the season." }
+    revalidatePath("/dashboard/member");
+    return {
+      success: true,
+      message: "Thanks for reading! You're all set for the season.",
+    };
   } catch (error) {
-    console.error("Error confirming welcome read:", error)
-    return { success: false, message: "Failed to confirm. Please try again." }
+    console.error("Error confirming welcome read:", error);
+    return { success: false, message: "Failed to confirm. Please try again." };
   }
 }
 
@@ -638,7 +657,9 @@ export async function sendPasswordReset(prevState, formData) {
 
     // Create the reset URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
-    const resetURL = `http://localhost:3000/password-reset/set-new-password/${encodeURIComponent(token)}`;
+    const resetURL = `http://localhost:3000/password-reset/set-new-password/${encodeURIComponent(
+      token
+    )}`;
 
     // const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(token)}`;
 
@@ -686,44 +707,44 @@ export async function sendPasswordReset(prevState, formData) {
 
 export async function setNewPassword(prevState, formData) {
   try {
-    const token = formData.get("token")
-    const password = formData.get("password")
-    const confirmPassword = formData.get("confirmPassword")
+    const token = formData.get("token");
+    const password = formData.get("password");
+    const confirmPassword = formData.get("confirmPassword");
 
     // Validate passwords
     if (!password || password.length < 6) {
       return {
         error: "Password must be at least 6 characters long.",
-      }
+      };
     }
 
     if (password !== confirmPassword) {
       return {
         error: "Passwords do not match.",
-      }
+      };
     }
 
     // Find the member with this token and check if it's still valid
-    const now = Date.now() // Current time in milliseconds
+    const now = Date.now(); // Current time in milliseconds
     const memberResult = await sql`
       SELECT id, email, first_name
       FROM members
       WHERE 
         password_reset_token = ${token}
         AND password_reset_expires > ${now}
-    `
+    `;
 
     if (memberResult.rows.length === 0) {
       return {
         error: "Password reset token is invalid or has expired.",
-      }
+      };
     }
 
-    const member = memberResult.rows[0]
+    const member = memberResult.rows[0];
 
     // Hash the new password using the imported bcryptjs
-    const salt = await bcrypt.genSalt(10)
-    const hashedPassword = await bcrypt.hash(password, salt)
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     // Update the member's password and clear the reset token
     await sql`
@@ -733,7 +754,7 @@ export async function setNewPassword(prevState, formData) {
         password_reset_token = NULL,
         password_reset_expires = NULL
       WHERE id = ${member.id}
-    `
+    `;
 
     // Send confirmation email
     try {
@@ -746,20 +767,24 @@ export async function setNewPassword(prevState, formData) {
           memberId: member.id.toString(),
         },
         replyTo: "sandsharks.org@gmail.com",
-      })
+      });
     } catch (emailError) {
-      console.error("Error sending password reset confirmation email:", emailError)
+      console.error(
+        "Error sending password reset confirmation email:",
+        emailError
+      );
       // Continue with the password reset process even if the email fails
     }
 
     return {
-      message: "Your password has been reset successfully. You can now log in with your new password.",
-    }
+      message:
+        "Your password has been reset successfully. You can now log in with your new password.",
+    };
   } catch (error) {
-    console.error("Error setting new password:", error)
+    console.error("Error setting new password:", error);
     return {
       error: "Something went wrong. Please try again.",
-    }
+    };
   }
 }
 
@@ -787,7 +812,7 @@ export async function setNewPassword(prevState, formData) {
 //     const memberResult = await sql`
 //       SELECT id, email
 //       FROM members
-//       WHERE 
+//       WHERE
 //         password_reset_token = ${token}
 //         AND password_reset_expires > ${now}
 //     `;
@@ -807,7 +832,7 @@ export async function setNewPassword(prevState, formData) {
 //     // Update the member's password and clear the reset token
 //     await sql`
 //       UPDATE members
-//       SET 
+//       SET
 //         password = ${hashedPassword},
 //         password_reset_token = NULL,
 //         password_reset_expires = NULL
@@ -3284,8 +3309,6 @@ export async function cancelPlayDay(formData) {
         email_list = true
     `;
 
-    console.log("play day", playDay);
-
     // Format the date for display
     const date = new Date(playDay.date);
     const formattedDate = date.toLocaleDateString("en-US", {
@@ -3296,7 +3319,9 @@ export async function cancelPlayDay(formData) {
     });
 
     // Create a time range string
-    const timeRange = `${formatTime(playDay.start_time)} - ${formatTime(playDay.end_time)}`;
+    const timeRange = `${formatTime(playDay.start_time)} - ${formatTime(
+      playDay.end_time
+    )}`;
 
     // Send cancellation emails to members who opted in
     if (membersResult.rows.length > 0) {
@@ -3799,8 +3824,6 @@ export async function handleEmailAction(action, id, expires, signature) {
     // Check if the link has expired
     const expiresTimestamp = Number.parseInt(decodedExpires, 10);
     const currentTimestamp = Math.floor(Date.now() / 1000);
-
-    console.log("Timestamp check:", { expiresTimestamp, currentTimestamp });
 
     if (currentTimestamp > expiresTimestamp) {
       return { success: false, message: "This link has expired" };
@@ -5415,7 +5438,9 @@ export async function deleteAccount(formData) {
     console.error("Error deleting account:", error);
     return {
       success: false,
-      message: `Failed to delete account: ${error.message || "Please try again."}`,
+      message: `Failed to delete account: ${
+        error.message || "Please try again."
+      }`,
     };
   }
 }

@@ -34,11 +34,13 @@ export async function login(prevState, formData) {
   formDataObj.rememberMe = formDataObj.rememberMe === "on";
   formDataObj.email = formDataObj.email.toLowerCase().trim();
 
-  // Extract redirectTo from formData if it exists
+  // Extract redirectTo and emailTarget from formData if they exist
   const redirectTo = formDataObj.redirectTo || null;
+  const emailTarget = formDataObj.emailTarget || null;
 
-  // Remove redirectTo from formDataObj before validation
+  // Remove redirectTo and emailTarget from formDataObj before validation
   delete formDataObj.redirectTo;
+  delete formDataObj.emailTarget;
 
   const { success, data, error } = loginSchema.safeParse(formDataObj);
   if (!success) {
@@ -112,8 +114,12 @@ export async function login(prevState, formData) {
     return { message: "An error occurred during login. Please try again." };
   }
 
-  // Check if there's a redirectTo parameter and redirect accordingly
-  if (redirectTo) {
+  // Check if there's an emailTarget parameter and construct the redirect URL
+  if (emailTarget && redirectTo === "/dashboard/member") {
+    redirect(`/dashboard/member?from=email&target=${emailTarget}`);
+  }
+  // Otherwise, check if there's a redirectTo parameter and redirect accordingly
+  else if (redirectTo) {
     redirect(redirectTo);
   } else {
     // Default redirect to dashboard
@@ -132,15 +138,10 @@ export async function logout() {
 }
 
 export async function getSession() {
-  try {
-    const cookieStore = cookies(); 
-    const session = cookieStore.get("session")?.value;
-    if (!session) return null;
-    return await decrypt(session);
-  } catch (error) {
-    console.log("Session not available during static generation");
-    return null;
-  }
+  const cookieStore = await cookies();
+  const session = cookieStore.get("session")?.value;
+  if (!session) return null;
+  return await decrypt(session);
 }
 
 export async function updateSession(request) {
@@ -212,10 +213,15 @@ export const verifyAuth = async (token) => {
 
 // //postgres
 // export async function login(prevState, formData) {
-//   console.log("logging in");
 //   const formDataObj = Object.fromEntries(formData.entries());
 //   formDataObj.rememberMe = formDataObj.rememberMe === "on";
 //   formDataObj.email = formDataObj.email.toLowerCase().trim();
+
+//   // Extract redirectTo from formData if it exists
+//   const redirectTo = formDataObj.redirectTo || null;
+
+//   // Remove redirectTo from formDataObj before validation
+//   delete formDataObj.redirectTo;
 
 //   const { success, data, error } = loginSchema.safeParse(formDataObj);
 //   if (!success) {
@@ -289,53 +295,14 @@ export const verifyAuth = async (token) => {
 //     return { message: "An error occurred during login. Please try again." };
 //   }
 
-//   // The redirect should be outside the try/catch block
-//   redirect("/dashboard");
+//   // Check if there's a redirectTo parameter and redirect accordingly
+//   if (redirectTo) {
+//     redirect(redirectTo);
+//   } else {
+//     // Default redirect to dashboard
+//     redirect("/dashboard");
+//   }
 // }
-// //mongodb
-// // export async function login(prevState, formData) {
-// //   const formDataObj = Object.fromEntries(formData.entries());
-// //   formDataObj.rememberMe = formDataObj.rememberMe === "on";
-
-// //   formDataObj.email = formDataObj.email.toLowerCase().trim();
-
-// //   const { success, data, error } = loginSchema.safeParse(formDataObj);
-
-// //   if (!success) {
-// //     return { message: error.message };
-// //   }
-
-// //   const user = data;
-
-// //   const dbClient = await dbConnection;
-// //   const db = await dbClient.db("Sandsharks");
-// //   const result = await db.collection("members").findOne({ email: user.email });
-
-// //   if (!result) {
-// //     return { message: "Invalid credentials" };
-// //   }
-// //   const passwordsMatch = await bcrypt.compare(user.password, result.password);
-// //   if (!passwordsMatch) {
-// //     return { message: "Invalid credentials" };
-// //   }
-
-// //   let resultObj = { ...result };
-// //   delete resultObj.password;
-
-// //   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
-// //   const session = await encrypt({ resultObj, expires });
-
-// //   const cookieStore = await cookies();
-// //   cookieStore.set("session", session, {
-// //     expires,
-// //     httpOnly: true,
-// //     secure: process.env.NODE_ENV === "production",
-// //     sameSite: "strict",
-// //   });
-
-// //   revalidatePath("/dashboard");
-// //   redirect("/dashboard");
-// // }
 
 // export async function logout() {
 //   const cookieStore = await cookies();
@@ -348,10 +315,15 @@ export const verifyAuth = async (token) => {
 // }
 
 // export async function getSession() {
-//   const cookieStore = await cookies();
-//   const session = cookieStore.get("session")?.value;
-//   if (!session) return null;
-//   return await decrypt(session);
+//   try {
+//     const cookieStore = cookies();
+//     const session = cookieStore.get("session")?.value;
+//     if (!session) return null;
+//     return await decrypt(session);
+//   } catch (error) {
+//     console.log("Session not available during static generation");
+//     return null;
+//   }
 // }
 
 // export async function updateSession(request) {
