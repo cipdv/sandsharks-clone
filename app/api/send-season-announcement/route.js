@@ -217,8 +217,8 @@ export async function GET(request) {
       });
     }
 
-    // For production, split emails into batches of 50 (Resend's BCC limit)
-    const emailBatches = chunkArray(allEmails, 50);
+    // For production, split emails into batches of 49 (to account for the primary recipient)
+    const emailBatches = chunkArray(allEmails, 49);
     console.log(
       `Splitting ${allEmails.length} emails into ${emailBatches.length} batches`
     );

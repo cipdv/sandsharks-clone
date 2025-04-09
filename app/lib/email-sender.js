@@ -135,8 +135,8 @@ export async function sendBccEmail({
           ]
         : recipients.map((recipient) => recipient.email);
 
-    // If we're in development or have fewer than 50 recipients, send as a single email
-    if (process.env.NODE_ENV === "development" || allBccEmails.length <= 50) {
+    // If we're in development or have fewer than 49 recipients, send as a single email
+    if (process.env.NODE_ENV === "development" || allBccEmails.length <= 49) {
       const { data, error } = await resend.emails.send({
         from: "Sandsharks <sandsharks@sandsharks.ca>",
         to: toEmail,
@@ -162,8 +162,8 @@ export async function sendBccEmail({
       };
     }
 
-    // For production with more than 50 recipients, split into batches
-    const bccBatches = chunkArray(allBccEmails, 50);
+    // For production with more than 49 recipients, split into batches
+    const bccBatches = chunkArray(allBccEmails, 49);
     console.log(
       `Splitting ${allBccEmails.length} emails into ${bccBatches.length} BCC batches`
     );
