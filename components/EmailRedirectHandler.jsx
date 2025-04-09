@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import LoadingSpinner from "./LoadingSpinner";
 
 export default function EmailRedirectHandler({ children }) {
   const searchParams = useSearchParams();
@@ -18,12 +19,15 @@ export default function EmailRedirectHandler({ children }) {
 
       switch (target) {
         case "donations":
+        case "donate":
           router.push("/dashboard/member/donations");
           break;
         case "volunteering":
+        case "volunteer":
           router.push("/dashboard/member/volunteering");
           break;
         case "become-a-sponsor":
+        case "sponsor":
           router.push("/dashboard/member/become-a-sponsor");
           break;
         case "profile":
@@ -37,14 +41,12 @@ export default function EmailRedirectHandler({ children }) {
     }
   }, [fromEmail, target, router]);
 
-  // If we're about to redirect, show a loading state
+  // If we're about to redirect, show the custom loading spinner
   if (fromEmail && target) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Redirecting to {target}...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <LoadingSpinner />
+        <p className="mt-4">Redirecting to {target}...</p>
       </div>
     );
   }
