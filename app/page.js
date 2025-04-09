@@ -18,7 +18,6 @@ export default async function Page() {
             className="object-cover"
             alt="Sandsharks group photo"
             priority
-            unoptimized
           />
         </div>
         <AboutTheLeague />
