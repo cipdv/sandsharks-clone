@@ -7,7 +7,7 @@ function renderSeasonAnnouncementEmail() {
   // Hardcode the base URL
   const baseUrl = "https://www.sandsharks.ca";
 
-  // Create URLs for the buttons
+  // Create URLs for the buttons with consistent target values
   const donateUrl = `${baseUrl}/dashboard/member?from=email&target=donations`;
   const volunteerUrl = `${baseUrl}/dashboard/member?from=email&target=volunteering`;
   const sponsorUrl = `${baseUrl}/dashboard/member?from=email&target=become-a-sponsor`;
@@ -108,7 +108,16 @@ function renderSeasonAnnouncementEmail() {
             <div style="text-align: center; margin: 25px 0;">
               <a href="${volunteerUrl}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">SIGN UP TO VOLUNTEER</a>
             </div>
-
+            
+            <h3 style="color: #17677a; margin-top: 25px;">Sponsoring</h3>
+            <p style="color: #333333;">This being the first year we've had large costs associated with running Sandsharks, I'd still like to seek out sponsorships from members within the league who run a business to help support the costs of running Sandsharks. If there is enough interest in sponsorships, this will help establish how we can cover costs in future seasons.</p>
+            <p style="color: #333333;">Sponsors are asked to cover the costs of running Sandsharks for one of the days we're playing ($200). As a thank you, I'll include your logo, links to your website and social media, and a description of your company on the day you're sponsoring, and in all email communications for that day to our 300+ members.</p>
+            <p style="color: #333333;">It's a great way to show your support and advertise your business and I'm hoping it'll encourage our members to support a fellow Shark's business.</p>
+            
+            <div style="text-align: center; margin: 25px 0;">
+              <a href="${sponsorUrl}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">SIGN UP TO BECOME A SPONSOR</a>
+            </div>
+            
             <h3 style="color: #17677a; margin-top: 25px;">Connect</h3>
             <p style="color: #333333;">Let's see those pretty faces! Please consider uploading a photo to your profile - it really helps new members get to know everyone (and helps me remember everybody's names haha).</p>
             <p style="color: #333333;">I've also added an option to share your instagram handle on your profile as well for those looking to connect with other players.</p>
@@ -120,17 +129,6 @@ function renderSeasonAnnouncementEmail() {
               <a href="${profileUrl}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">UPDATE PROFILE</a>
             </div>
             
-            <h3 style="color: #17677a; margin-top: 25px;">Sponsoring</h3>
-            <p style="color: #333333;">This being the first year we've had large costs associated with running Sandsharks, I'd still like to seek out sponsorships from members within the league who run a business to help support the costs of running Sandsharks. If there is enough interest in sponsorships, this will help establish how we can cover costs in future seasons.</p>
-            <p style="color: #333333;">Sponsors are asked to cover the costs of running Sandsharks for one of the days we're playing ($200). As a thank you, I'll include your logo, links to your website and social media, and a description of your company on the day you're sponsoring, and in all email communications for that day to our 300+ members.</p>
-            <p style="color: #333333;">It's a great way to show your support and advertise your business and I'm hoping it'll encourage our members to support a fellow Shark's business.</p>
-            
-            <div style="text-align: center; margin: 25px 0;">
-              <a href="${sponsorUrl}" style="display: inline-block; background-color: #2ebebe; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">SIGN UP TO BECOME A SPONSOR</a>
-            </div>
-            
-            
-            
             <h3 style="color: #17677a; margin-top: 25px;">Spread the Word</h3>
             <p style="color: #333333;">Lastly, let's get the word out that this is going to be a super fun season! Tell your friends and playmates to come give Sandsharks a try this Summer!</p>
             
@@ -139,12 +137,22 @@ function renderSeasonAnnouncementEmail() {
           </div>
           
           <div class="email-footer">
+            <p>© ${new Date().getFullYear()} Toronto Sandsharks. All rights reserved.</p>
             <p><a href="${baseUrl}/unsubscribe" style="color: #666666; text-decoration: underline;">Unsubscribe from emails</a></p>
           </div>
         </div>
       </body>
     </html>
   `;
+}
+
+// Helper function to split an array into chunks of a specified size
+function chunkArray(array, chunkSize) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
 }
 
 export async function GET(request) {
@@ -172,8 +180,8 @@ export async function GET(request) {
     // Generate the email content (same for all recipients)
     const emailHtml = renderSeasonAnnouncementEmail();
 
-    // Extract just the email addresses for BCC
-    const bccEmails = membersResult.rows.map((member) => member.email);
+    // Extract just the email addresses
+    const allEmails = membersResult.rows.map((member) => member.email);
 
     // In development, only send to a test email
     const toEmail =
@@ -181,36 +189,105 @@ export async function GET(request) {
         ? "cip.devries@gmail.com"
         : "sandsharks@sandsharks.ca";
 
-    const bccList =
-      process.env.NODE_ENV === "development"
-        ? ["cip.devries@gmail.com"]
-        : bccEmails;
+    // For development, use a single test email
+    if (process.env.NODE_ENV === "development") {
+      const { data, error } = await resend.emails.send({
+        from: "Sandsharks <sandsharks@sandsharks.ca>",
+        to: toEmail,
+        bcc: ["cip.devries@gmail.com"],
+        subject: "Sandsharks 2024 Season Announcement - Important Updates!",
+        html: emailHtml,
+      });
 
-    // Send a single email with all recipients in BCC
-    const { data, error } = await resend.emails.send({
-      from: "Sandsharks <sandsharks@sandsharks.ca>",
-      to: toEmail,
-      bcc: bccList,
-      subject: "Sandsharks 2025 Season Announcement! - Please Read :)",
-      html: emailHtml,
-    });
+      if (error) {
+        console.error("Error sending season announcement email:", error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: error,
+          },
+          { status: 500 }
+        );
+      }
 
-    if (error) {
-      console.error("Error sending season announcement email:", error);
-      return NextResponse.json(
-        {
-          success: false,
-          error: error,
-        },
-        { status: 500 }
+      return NextResponse.json({
+        success: true,
+        totalEmails: 1,
+        messageId: data?.id,
+        message: `Successfully sent test season announcement email`,
+      });
+    }
+
+    // For production, split emails into batches of 50 (Resend's BCC limit)
+    const emailBatches = chunkArray(allEmails, 50);
+    console.log(
+      `Splitting ${allEmails.length} emails into ${emailBatches.length} batches`
+    );
+
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Send each batch
+    for (let i = 0; i < emailBatches.length; i++) {
+      const batch = emailBatches[i];
+      console.log(
+        `Sending batch ${i + 1} of ${emailBatches.length} with ${
+          batch.length
+        } recipients`
       );
+
+      try {
+        const { data, error } = await resend.emails.send({
+          from: "Sandsharks <sandsharks@sandsharks.ca>",
+          to: toEmail,
+          bcc: batch,
+          subject: "Sandsharks 2024 Season Announcement - Important Updates!",
+          html: emailHtml,
+        });
+
+        if (error) {
+          console.error(`Error sending batch ${i + 1}:`, error);
+          failureCount += batch.length;
+          results.push({
+            batch: i + 1,
+            success: false,
+            error: error,
+            recipients: batch.length,
+          });
+        } else {
+          successCount += batch.length;
+          results.push({
+            batch: i + 1,
+            success: true,
+            messageId: data?.id,
+            recipients: batch.length,
+          });
+        }
+
+        // Add a small delay between batches to avoid rate limiting
+        if (i < emailBatches.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.error(`Error sending batch ${i + 1}:`, error);
+        failureCount += batch.length;
+        results.push({
+          batch: i + 1,
+          success: false,
+          error: error.message,
+          recipients: batch.length,
+        });
+      }
     }
 
     return NextResponse.json({
-      success: true,
-      totalEmails: bccList.length,
-      messageId: data?.id,
-      message: `Successfully sent season announcement email to ${bccList.length} members`,
+      success: successCount > 0,
+      totalEmails: allEmails.length,
+      successCount,
+      failureCount,
+      batchResults: results,
+      message: `Sent season announcement email to ${successCount} of ${allEmails.length} members`,
     });
   } catch (error) {
     console.error("Error sending season announcement emails:", error);
