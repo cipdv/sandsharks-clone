@@ -34,6 +34,7 @@ export async function middleware(request) {
     "/email-action",
     "/delete-account",
     "/dashboard/member", // Allow direct access to member dashboard
+    "/unsubscribe", // Add this line to allow access to the unsubscribe page
     /^\/unsubscribe\/.*$/,
     /^\/account\/delete\/.*$/,
   ];

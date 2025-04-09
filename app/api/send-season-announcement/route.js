@@ -75,7 +75,6 @@ function renderSeasonAnnouncementEmail() {
       <body>
         <div class="email-container">
           <div class="email-header">
-            <img src="${baseUrl}/images/sandsharks-rainbow-icon.svg" alt="Toronto Sandsharks Logo" />
             <h1>Toronto Sandsharks Beach Volleyball League</h1>
           </div>
           
