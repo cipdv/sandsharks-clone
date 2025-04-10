@@ -657,7 +657,7 @@ export async function sendPasswordReset(prevState, formData) {
 
     // Create the reset URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
-    const resetURL = `http://localhost:3000/password-reset/set-new-password/${encodeURIComponent(
+    const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(
       token
     )}`;
 
