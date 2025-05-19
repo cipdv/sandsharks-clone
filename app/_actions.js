@@ -4431,7 +4431,7 @@ export async function getAllMembers() {
 
   try {
     // Query members with sponsor information using a LEFT JOIN
-    // Removed s.website since it doesn't exist in your sponsors table
+    // Added waiver_confirmed_at to the SELECT statement
     const membersResult = await sql`
       SELECT 
         m.id,
@@ -4441,6 +4441,9 @@ export async function getAllMembers() {
         m.pronouns,
         m.profile_pic_url,
         m.photo_consent,
+        m.email_list,
+        m.waiver_confirmed,
+        m.waiver_confirmed_at,
         m.member_type,
         m.instagram_handle,
         m.about,
@@ -4462,6 +4465,7 @@ export async function getAllMembers() {
     for (const row of membersResult.rows) {
       if (!membersMap.has(row.id)) {
         // Create a new member object
+        // Added waiverConfirmedAt property
         membersMap.set(row.id, {
           id: row.id,
           firstName: row.first_name,
@@ -4471,6 +4475,9 @@ export async function getAllMembers() {
           profilePicUrl: row.profile_pic_url,
           profilePicStatus: row.profile_pic_status,
           photoConsent: row.photo_consent,
+          emailList: row.email_list,
+          waiverConfirmed: row.waiver_confirmed,
+          waiverConfirmedAt: row.waiver_confirmed_at,
           memberType: row.member_type,
           instagramHandle: row.instagram_handle,
           about: row.about,
@@ -4501,6 +4508,85 @@ export async function getAllMembers() {
     return { error: "Failed to fetch members" };
   }
 }
+
+// export async function getAllMembers() {
+//   const session = await getSession();
+//   if (!session) {
+//     return { message: "You must be logged in to get members list" };
+//   }
+
+//   try {
+//     // Query members with sponsor information using a LEFT JOIN
+//     // Removed s.website since it doesn't exist in your sponsors table
+//     const membersResult = await sql`
+//       SELECT
+//         m.id,
+//         m.first_name,
+//         m.last_name,
+//         m.email,
+//         m.pronouns,
+//         m.profile_pic_url,
+//         m.photo_consent,
+//         m.member_type,
+//         m.instagram_handle,
+//         m.about,
+//         m.profile_pic_status,
+//         s.id AS sponsor_id,
+//         s.name AS sponsor_name,
+//         s.logo_url AS sponsor_logo
+//       FROM
+//         members m
+//       LEFT JOIN
+//         sponsors s ON m.id = s.member_id
+//       ORDER BY
+//         m.last_name, m.first_name
+//     `;
+
+//     // Process the results to handle members with multiple sponsors
+//     const membersMap = new Map();
+
+//     for (const row of membersResult.rows) {
+//       if (!membersMap.has(row.id)) {
+//         // Create a new member object
+//         membersMap.set(row.id, {
+//           id: row.id,
+//           firstName: row.first_name,
+//           lastName: row.last_name,
+//           email: row.email,
+//           pronouns: row.pronouns,
+//           profilePicUrl: row.profile_pic_url,
+//           profilePicStatus: row.profile_pic_status,
+//           photoConsent: row.photo_consent,
+//           memberType: row.member_type,
+//           instagramHandle: row.instagram_handle,
+//           about: row.about,
+//           isVolunteer:
+//             row.member_type === "volunteer" ||
+//             row.member_type === "admin" ||
+//             row.member_type === "ultrashark",
+//           sponsors: [],
+//         });
+//       }
+
+//       // Add sponsor information if it exists
+//       if (row.sponsor_id) {
+//         membersMap.get(row.id).sponsors.push({
+//           id: row.sponsor_id,
+//           name: row.sponsor_name,
+//           logoUrl: row.sponsor_logo,
+//         });
+//       }
+//     }
+
+//     // Convert the map to an array
+//     const members = Array.from(membersMap.values());
+
+//     return members;
+//   } catch (error) {
+//     console.error("Error fetching members:", error);
+//     return { error: "Failed to fetch members" };
+//   }
+// }
 
 export async function approveMember(memberId) {
   const session = await getSession();
