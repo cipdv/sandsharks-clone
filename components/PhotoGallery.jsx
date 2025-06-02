@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getPhotosByYear } from "@/app/_actions";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 export default function PhotoGallery({ years, currentYear }) {
   const [selectedYear, setSelectedYear] = useState("");
@@ -53,7 +54,7 @@ export default function PhotoGallery({ years, currentYear }) {
     return (
       <div className="w-3/4 mx-auto mb-12">
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sandsharks-blue"></div>
+          <LoadingSpinner />
         </div>
       </div>
     );
@@ -92,7 +93,7 @@ export default function PhotoGallery({ years, currentYear }) {
       {/* Photos */}
       {isLoading ? (
         <div className="flex justify-center items-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sandsharks-blue"></div>
+          <LoadingSpinner />
         </div>
       ) : photos.length === 0 ? (
         <div className="bg-gray-50 rounded-lg p-8 text-center">
