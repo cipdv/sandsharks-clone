@@ -153,6 +153,13 @@ const Navbar = ({ currentUser }) => {
                   Rules
                 </Link>
                 <Link
+                  href="/dashboard/member/photo-gallery"
+                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  onClick={closeMenu}
+                >
+                  Photo Gallery
+                </Link>
+                <Link
                   href="/dashboard/member/members"
                   className="py-2 hover:bg-gray-100 rounded pl-2"
                   onClick={closeMenu}
@@ -214,6 +221,13 @@ const Navbar = ({ currentUser }) => {
                       onClick={closeMenu}
                     >
                       Manage Members
+                    </Link>
+                    <Link
+                      href="/dashboard/ultrashark/photo-gallery"
+                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      onClick={closeMenu}
+                    >
+                      Manage Photos
                     </Link>
                     <Link
                       href="/dashboard/ultrashark/donations"

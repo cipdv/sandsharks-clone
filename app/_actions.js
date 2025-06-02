@@ -6873,3 +6873,406 @@ export async function unsubscribeByEmail(prevState, formData) {
     };
   }
 }
+
+////////////////////////////////////////////////////////////////////////////////////
+//photo gallery
+////////////////////////////////////////////////////////////////////////////////////
+
+// New function specifically for photo tagging - simpler structure
+export async function getMembersForTagging() {
+  try {
+    const result = await sql`
+      SELECT 
+        id, 
+        first_name, 
+        last_name,
+        profile_pic_url
+      FROM 
+        members
+      WHERE
+        member_type IN ('member', 'volunteer', 'admin', 'ultrashark')
+      ORDER BY 
+        first_name, last_name
+    `;
+    return result.rows;
+  } catch (error) {
+    console.error("Error fetching members for tagging:", error);
+    return [];
+  }
+}
+
+// Get all years that have photos
+export async function getPhotoYears() {
+  try {
+    const result = await sql`
+      SELECT DISTINCT year 
+      FROM photo_gallery 
+      ORDER BY year DESC
+    `;
+    return result.rows.map((row) => row.year);
+  } catch (error) {
+    console.error("Error fetching photo years:", error);
+    return [];
+  }
+}
+
+// Get current year for default selection
+export async function getCurrentYear() {
+  return new Date().getFullYear();
+}
+
+// Update the uploadPhotos function to handle member tagging (including custom names)
+export async function uploadPhotos(formData) {
+  const session = await getSession();
+  if (!session?.resultObj || session.resultObj.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be logged in as ultrashark to upload photos",
+    };
+  }
+
+  try {
+    const files = formData.getAll("photos");
+    const year = Number.parseInt(
+      formData.get("year") || new Date().getFullYear()
+    );
+
+    // Get tagged members for each photo (now includes both member IDs and custom names)
+    const taggedMembersData = formData.get("taggedMembers");
+    let taggedMembersMap = {};
+
+    if (taggedMembersData) {
+      try {
+        taggedMembersMap = JSON.parse(taggedMembersData);
+      } catch (e) {
+        console.error("Error parsing tagged members:", e);
+      }
+    }
+
+    if (!files || files.length === 0) {
+      return {
+        success: false,
+        message: "Please select at least one photo to upload",
+      };
+    }
+
+    const uploadedPhotos = [];
+    const { put } = await import("@vercel/blob");
+
+    // Process each file
+    for (const file of files) {
+      if (!file || file.size === 0) continue;
+
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        return {
+          success: false,
+          message: `File ${file.name} is not an image. Please upload only image files.`,
+        };
+      }
+
+      // Validate file size (limit to 10MB per image)
+      if (file.size > 10 * 1024 * 1024) {
+        return {
+          success: false,
+          message: `File ${file.name} exceeds 10MB limit`,
+        };
+      }
+
+      // Upload to Vercel Blob
+      const filename = `gallery-${year}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(7)}-${file.name}`;
+
+      const blob = await put(filename, file, {
+        access: "public",
+      });
+
+      uploadedPhotos.push({
+        filename: file.name,
+        url: blob.url,
+        size: file.size,
+        fileIndex: uploadedPhotos.length, // Keep track of the original index
+      });
+    }
+
+    // Insert photos into database and tag members
+    for (const photo of uploadedPhotos) {
+      // Insert the photo
+      const photoResult = await sql`
+        INSERT INTO photo_gallery (
+          url,
+          filename,
+          file_size,
+          year,
+          uploaded_by,
+          created_at
+        )
+        VALUES (
+          ${photo.url},
+          ${photo.filename},
+          ${photo.size},
+          ${year},
+          ${session.resultObj._id},
+          ${new Date()}
+        )
+        RETURNING id
+      `;
+
+      const photoId = photoResult.rows[0].id;
+
+      // Add member tags if any are specified for this photo
+      const photoTags = taggedMembersMap[photo.fileIndex] || [];
+
+      for (const tag of photoTags) {
+        if (tag) {
+          if (tag.type === "member" && tag.id) {
+            // Check if tag already exists before inserting
+            const existingTag = await sql`
+              SELECT id FROM photo_tags 
+              WHERE photo_id = ${photoId} AND member_id = ${tag.id}
+            `;
+
+            if (existingTag.rows.length === 0) {
+              // Tag existing member only if not already tagged
+              await sql`
+                INSERT INTO photo_tags (photo_id, member_id)
+                VALUES (${photoId}, ${tag.id})
+              `;
+            }
+          } else if (tag.type === "custom" && tag.name) {
+            // Check if custom name tag already exists
+            const existingCustomTag = await sql`
+              SELECT id FROM photo_tags 
+              WHERE photo_id = ${photoId} AND custom_name = ${tag.name}
+            `;
+
+            if (existingCustomTag.rows.length === 0) {
+              // Tag custom name only if not already tagged
+              await sql`
+                INSERT INTO photo_tags (photo_id, custom_name)
+                VALUES (${photoId}, ${tag.name})
+              `;
+            }
+          }
+        }
+      }
+    }
+
+    revalidatePath("/dashboard/ultrashark/photo-upload");
+    revalidatePath("/dashboard/ultrashark/gallery");
+
+    return {
+      success: true,
+      message: `Successfully uploaded ${uploadedPhotos.length} photo${
+        uploadedPhotos.length > 1 ? "s" : ""
+      } to ${year} gallery`,
+      count: uploadedPhotos.length,
+    };
+  } catch (error) {
+    console.error("Error uploading photos:", error);
+    return {
+      success: false,
+      message: `Error uploading photos: ${error.message}`,
+    };
+  }
+}
+
+// Get photos for a specific year
+export async function getPhotosByYear(year) {
+  try {
+    const result = await sql`
+      SELECT 
+        pg.*,
+        m.first_name || ' ' || m.last_name AS uploaded_by_name
+      FROM 
+        photo_gallery pg
+      LEFT JOIN
+        members m ON pg.uploaded_by = m.id
+      WHERE
+        pg.year = ${year}
+      ORDER BY
+        pg.created_at DESC
+    `;
+    return result.rows;
+  } catch (error) {
+    console.error("Error fetching photos by year:", error);
+    return [];
+  }
+}
+
+// Delete a photo
+export async function deletePhoto(photoId) {
+  const session = await getSession();
+  if (!session?.resultObj || session.resultObj.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be logged in as ultrashark to delete photos",
+    };
+  }
+
+  try {
+    // Get photo details before deletion
+    const photoResult = await sql`
+      SELECT url FROM photo_gallery WHERE id = ${photoId}
+    `;
+
+    if (photoResult.rows.length === 0) {
+      return {
+        success: false,
+        message: "Photo not found",
+      };
+    }
+
+    // Delete from database
+    await sql`
+      DELETE FROM photo_gallery WHERE id = ${photoId}
+    `;
+
+    // Note: Vercel Blob doesn't have a delete API in the current version
+    // The blob will remain but won't be accessible through your app
+
+    revalidatePath("/dashboard/ultrashark/gallery");
+    revalidatePath("/dashboard/ultrashark/photo-upload");
+
+    return {
+      success: true,
+      message: "Photo deleted successfully",
+    };
+  } catch (error) {
+    console.error("Error deleting photo:", error);
+    return {
+      success: false,
+      message: "Failed to delete photo",
+    };
+  }
+}
+
+// Add a tag to an existing photo
+export async function addTagToPhoto(photoId, tagData) {
+  const session = await getSession();
+  if (!session?.resultObj || session.resultObj.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be logged in as ultrashark to add tags",
+    };
+  }
+
+  try {
+    if (tagData.type === "member" && tagData.id) {
+      // Check if tag already exists
+      const existingTag = await sql`
+        SELECT id FROM photo_tags 
+        WHERE photo_id = ${photoId} AND member_id = ${tagData.id}
+      `;
+
+      if (existingTag.rows.length > 0) {
+        return {
+          success: false,
+          message: "This person is already tagged in this photo",
+        };
+      }
+
+      // Add member tag
+      await sql`
+        INSERT INTO photo_tags (photo_id, member_id)
+        VALUES (${photoId}, ${tagData.id})
+      `;
+    } else if (tagData.type === "custom" && tagData.name) {
+      // Check if custom tag already exists
+      const existingCustomTag = await sql`
+        SELECT id FROM photo_tags 
+        WHERE photo_id = ${photoId} AND custom_name = ${tagData.name}
+      `;
+
+      if (existingCustomTag.rows.length > 0) {
+        return {
+          success: false,
+          message: "This name is already tagged in this photo",
+        };
+      }
+
+      // Add custom tag
+      await sql`
+        INSERT INTO photo_tags (photo_id, custom_name)
+        VALUES (${photoId}, ${tagData.name})
+      `;
+    } else {
+      return {
+        success: false,
+        message: "Invalid tag data",
+      };
+    }
+
+    revalidatePath("/dashboard/ultrashark/photo-upload");
+
+    return {
+      success: true,
+      message: "Tag added successfully",
+    };
+  } catch (error) {
+    console.error("Error adding tag:", error);
+    return {
+      success: false,
+      message: "Failed to add tag",
+    };
+  }
+}
+
+// Remove a tag from a photo
+export async function removeTagFromPhoto(photoId, tagId) {
+  const session = await getSession();
+  if (!session?.resultObj || session.resultObj.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be logged in as ultrashark to remove tags",
+    };
+  }
+
+  try {
+    await sql`
+      DELETE FROM photo_tags 
+      WHERE id = ${tagId} AND photo_id = ${photoId}
+    `;
+
+    revalidatePath("/dashboard/ultrashark/photo-upload");
+
+    return {
+      success: true,
+      message: "Tag removed successfully",
+    };
+  } catch (error) {
+    console.error("Error removing tag:", error);
+    return {
+      success: false,
+      message: "Failed to remove tag",
+    };
+  }
+}
+
+// Get members tagged in a photo
+export async function getPhotoTags(photoId) {
+  try {
+    const result = await sql`
+      SELECT 
+        pt.id,
+        pt.member_id,
+        pt.custom_name,
+        m.first_name,
+        m.last_name,
+        m.profile_pic_url
+      FROM 
+        photo_tags pt
+      LEFT JOIN
+        members m ON pt.member_id = m.id
+      WHERE
+        pt.photo_id = ${photoId}
+      ORDER BY
+        m.first_name, m.last_name, pt.custom_name
+    `;
+    return result.rows;
+  } catch (error) {
+    console.error("Error fetching photo tags:", error);
+    return [];
+  }
+}
