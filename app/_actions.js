@@ -7276,3 +7276,176 @@ export async function getPhotoTags(photoId) {
     return [];
   }
 }
+
+///////////////////////////////////////////////////////////////////////
+//guest sign up
+///////////////////////////////////////////////////////////////////////
+
+// Create payment intent for guest donation
+export async function createGuestPaymentIntent(amount, guestInfo = {}) {
+  console.log(
+    "Server action: createGuestPaymentIntent called with amount:",
+    amount
+  );
+  console.log("Guest info:", guestInfo);
+
+  try {
+    if (
+      !amount ||
+      isNaN(Number.parseFloat(amount)) ||
+      Number.parseFloat(amount) <= 0
+    ) {
+      throw new Error("Invalid donation amount");
+    }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const amountInCents = Math.round(Number.parseFloat(amount) * 100);
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "cad",
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: "never",
+      },
+      metadata: {
+        guest_name: guestInfo.name || "",
+        guest_email: guestInfo.email || "",
+        guest_id: guestInfo.guestId || "",
+        type: "guest_donation",
+      },
+    });
+
+    console.log("Payment intent created successfully:", paymentIntent.id);
+    return {
+      clientSecret: paymentIntent.client_secret,
+    };
+  } catch (error) {
+    console.error("Error creating payment intent:", error);
+    throw new Error(
+      error.message || "An error occurred while processing your donation"
+    );
+  }
+}
+
+// Guest registration action
+export async function registerGuestOnly(prevState, formData) {
+  console.log("Server action: registerGuestOnly called");
+
+  try {
+    const firstName = formData.get("firstName");
+    const lastName = formData.get("lastName");
+    const email = formData.get("email");
+    const photoConsent = formData.get("photoConsent") === "on";
+    const waiverAgreement = formData.get("waiverAgreement") === "on";
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !waiverAgreement) {
+      return {
+        success: false,
+        message: "Please fill in all required fields and agree to the waiver.",
+      };
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return {
+        success: false,
+        message: "Please enter a valid email address.",
+      };
+    }
+
+    // Check if email already exists
+    const existingGuest = await sql`
+      SELECT id FROM guests WHERE email = ${email}
+    `;
+
+    if (existingGuest.rows.length > 0) {
+      return {
+        success: false,
+        message: "This email address is already registered as a guest.",
+      };
+    }
+
+    // Insert new guest
+    const result = await sql`
+      INSERT INTO guests (first_name, last_name, email, photo_release, waiver_confirmed_at)
+      VALUES (${firstName}, ${lastName}, ${email}, ${photoConsent}, CURRENT_TIMESTAMP)
+      RETURNING id
+    `;
+
+    const guestId = result.rows[0].id;
+    console.log("Guest registered with ID:", guestId);
+
+    return {
+      success: true,
+      message: "Registration successful!",
+      guestId,
+    };
+  } catch (error) {
+    console.error("Guest registration error:", error);
+    return {
+      success: false,
+      message: "Registration failed: " + (error.message || "Unknown error"),
+    };
+  }
+}
+
+export async function recordGuestDonation(paymentIntentId) {
+  console.log(
+    "Server action: recordGuestDonation called with paymentIntentId:",
+    paymentIntentId
+  );
+
+  try {
+    // Fetch payment intent details from Stripe
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    if (!paymentIntent) {
+      throw new Error(`Payment intent not found: ${paymentIntentId}`);
+    }
+
+    const amount = paymentIntent.amount / 100; // Amount in dollars
+    const guestName = paymentIntent.metadata.guest_name || "Guest";
+    const guestEmail = paymentIntent.metadata.guest_email || "N/A";
+    const guestId = paymentIntent.metadata.guest_id || "";
+
+    // Insert donation record into the database with NULL member_id for guest donations
+    const guestNotes = `Guest donation - Name: ${guestName}, Email: ${guestEmail}, Guest ID: ${guestId}`;
+
+    await sql`
+      INSERT INTO donations (
+        session_id, 
+        amount, 
+        member_id,
+        status, 
+        notes, 
+        created_at
+      ) 
+      VALUES (
+        ${paymentIntentId}, 
+        ${amount}, 
+        ${null},
+        ${"completed"}, 
+        ${guestNotes}, 
+        ${new Date()}
+      )
+    `;
+
+    console.log(
+      "Guest donation recorded successfully for payment intent:",
+      paymentIntentId
+    );
+    revalidatePath("/guest-donation");
+    return { success: true, message: "Donation recorded successfully" };
+  } catch (error) {
+    console.error("Error recording guest donation:", error);
+    return {
+      success: false,
+      message:
+        "Failed to record donation: " + (error.message || "Unknown error"),
+    };
+  }
+}
