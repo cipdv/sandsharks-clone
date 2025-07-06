@@ -552,6 +552,7 @@ export async function registerNewMember(prevState, formData) {
 
 //     //remove password from the object
 //     const resultObj = {
+//       id: memberData.id, // Added this line to include the id property
 //       _id: memberData.id.toString(),
 //       firstName: memberData.first_name,
 //       lastName: memberData.last_name,
@@ -569,7 +570,7 @@ export async function registerNewMember(prevState, formData) {
 //     };
 
 //     // Create the session
-//     const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+//     const expires = new Date(Date.now() + 10 * 60 * 1000);
 //     const session = await encrypt({ resultObj, expires });
 
 //     // Save the session in a cookie
