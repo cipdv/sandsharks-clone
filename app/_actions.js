@@ -176,7 +176,7 @@ export async function registerNewMember(prevState, formData) {
   // Normalize the email address
   formDataObj.email = formDataObj.email.toLowerCase().trim();
 
-  // Capitalize the first letter of the first name and preferred name
+  // Capitalize the first letter of the first name
   formDataObj.firstName =
     formDataObj.firstName.charAt(0).toUpperCase() +
     formDataObj.firstName.slice(1);
@@ -185,72 +185,118 @@ export async function registerNewMember(prevState, formData) {
   const result = MemberSchema.safeParse(formDataObj);
 
   if (result.error) {
-    // Find the error related to the password length
+    // Find specific validation errors
     const passwordError = result.error.issues.find(
-      (issue) =>
-        issue.path[0] === "password" &&
-        issue.type === "string" &&
-        issue.minimum === 6
+      (issue) => issue.path[0] === "password" && issue.code === "too_small"
     );
 
     const confirmPasswordError = result.error.issues.find(
       (issue) =>
-        issue.path[0] === "confirmPassword" &&
-        issue.type === "string" &&
-        issue.minimum === 6
+        issue.path[0] === "confirmPassword" && issue.code === "too_small"
     );
 
-    // If the error exists, return a custom message
+    const emailError = result.error.issues.find((issue) => {
+      return issue.path[0] === "email" && issue.validation === "email";
+    });
+
+    // Return specific error messages
     if (passwordError) {
-      return { password: "^ Password must be at least 6 characters long" };
+      return {
+        success: false,
+        password: "^ Password must be at least 6 characters long",
+        formData: {
+          firstName: formDataObj.firstName || "",
+          lastName: formDataObj.lastName || "",
+          email: formDataObj.email || "",
+          pronouns: formDataObj.pronouns || "",
+          instagramHandle: formDataObj.instagramHandle || "",
+        },
+      };
     }
 
     if (confirmPasswordError) {
       return {
+        success: false,
         confirmPassword:
           "^ Passwords must be at least 6 characters long and match",
+        formData: {
+          firstName: formDataObj.firstName || "",
+          lastName: formDataObj.lastName || "",
+          email: formDataObj.email || "",
+          pronouns: formDataObj.pronouns || "",
+          instagramHandle: formDataObj.instagramHandle || "",
+        },
       };
     }
-
-    const emailError = result.error.issues.find((issue) => {
-      return (
-        issue.path[0] === "email" &&
-        issue.validation === "email" &&
-        issue.code === "invalid_string"
-      );
-    });
 
     if (emailError) {
-      return { email: "^ Please enter a valid email address" };
-    }
-
-    if (!result.success) {
       return {
-        message:
-          "Failed to register: make sure all required fields are completed and try again",
+        success: false,
+        email: "^ Please enter a valid email address",
+        formData: {
+          firstName: formDataObj.firstName || "",
+          lastName: formDataObj.lastName || "",
+          email: formDataObj.email || "",
+          pronouns: formDataObj.pronouns || "",
+          instagramHandle: formDataObj.instagramHandle || "",
+        },
       };
     }
+
+    // Generic validation error
+    return {
+      success: false,
+      message:
+        "Failed to register: make sure all required fields are completed and try again",
+      formData: {
+        firstName: formDataObj.firstName || "",
+        lastName: formDataObj.lastName || "",
+        email: formDataObj.email || "",
+        pronouns: formDataObj.pronouns || "",
+        instagramHandle: formDataObj.instagramHandle || "",
+      },
+    };
   }
 
   const { firstName, lastName, pronouns, email, password, confirmPassword } =
     result.data;
 
-  //check if passwords match
+  // Check if passwords match
   if (password !== confirmPassword) {
-    return { confirmPassword: "^ Passwords do not match" };
+    return {
+      success: false,
+      confirmPassword: "^ Passwords do not match",
+      formData: {
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email: email || "",
+        pronouns: pronouns || "", // This should now be properly captured from result.data
+        instagramHandle: formData.get("instagramHandle") || "",
+      },
+    };
   }
 
   try {
-    // Check if user already exists using PostgreSQL
+    // Check if user already exists
     const existingUser = await sql`
       SELECT * FROM members WHERE email = ${email}
     `;
 
     if (existingUser.rows.length > 0) {
-      return { email: "^ This email is already registered" };
+      return {
+        success: false,
+        email: "^ This email is already registered",
+        formData: {
+          firstName: firstName || "",
+          lastName: lastName || "",
+          email: email || "",
+          pronouns: pronouns || "",
+          instagramHandle: formData.get("instagramHandle") || "",
+        },
+      };
     }
 
-    //hash password
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -261,21 +307,26 @@ export async function registerNewMember(prevState, formData) {
 
     // If a profile picture was uploaded, process it
     if (profilePictureDataUrl) {
-      // Convert data URL to a Buffer
-      const base64Data = profilePictureDataUrl.split(",")[1];
-      const buffer = Buffer.from(base64Data, "base64");
+      try {
+        // Convert data URL to a Buffer
+        const base64Data = profilePictureDataUrl.split(",")[1];
+        const buffer = Buffer.from(base64Data, "base64");
 
-      // Upload the profile picture to Vercel Blob
-      const { put } = await import("@vercel/blob");
-      const filename = `profile-pic-signup-${Date.now()}.jpg`;
+        // Upload the profile picture to Vercel Blob
+        const { put } = await import("@vercel/blob");
+        const filename = `profile-pic-signup-${Date.now()}.jpg`;
 
-      const blob = await put(filename, buffer, {
-        access: "public",
-        contentType: "image/jpeg",
-      });
+        const blob = await put(filename, buffer, {
+          access: "public",
+          contentType: "image/jpeg",
+        });
 
-      profilePicUrl = blob.url;
-      profilePicStatus = "pending"; // Set status to pending for admin approval
+        profilePicUrl = blob.url;
+        profilePicStatus = "pending";
+      } catch (imageError) {
+        console.error("Error uploading profile picture:", imageError);
+        // Continue without profile picture if upload fails
+      }
     }
 
     // Get and clean Instagram handle
@@ -284,14 +335,14 @@ export async function registerNewMember(prevState, formData) {
       ? instagramHandle.trim().replace(/^@/, "")
       : null;
 
-    // Insert new user into PostgreSQL with profile picture if provided
+    // Insert new user into database
     const newMember = await sql`
       INSERT INTO members (
         first_name, 
         last_name, 
         pronouns, 
         email, 
-        member_type, 
+        member_type,
         password, 
         created_at,
         email_list,
@@ -315,32 +366,29 @@ export async function registerNewMember(prevState, formData) {
       RETURNING *
     `;
 
-    // Get the inserted member data
     const memberData = newMember.rows[0];
 
-    // Use the new email template system to send the welcome email
-    // const { sendEmail } = await import("@/lib/email-sender");
-
-    const emailResult = await sendEmail({
-      to: email,
-      subject: "Welcome to Sandsharks!",
-      templateName: "welcome",
-      templateData: {
-        firstName,
-        memberId: memberData.id.toString(),
-        currentYear: new Date().getFullYear(),
-      },
-      replyTo: process.env.REPLY_TO_EMAIL,
-    });
-
-    if (!emailResult.success) {
-      console.error("Error sending welcome email:", emailResult.error);
+    // Send welcome email (don't fail registration if email fails)
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Welcome to Sandsharks!",
+        templateName: "welcome",
+        templateData: {
+          firstName,
+          memberId: memberData.id.toString(),
+          currentYear: new Date().getFullYear(),
+        },
+        replyTo: process.env.REPLY_TO_EMAIL,
+      });
+    } catch (emailError) {
+      console.error("Error sending welcome email:", emailError);
       // Continue with registration even if email fails
     }
 
-    //remove password from the object
+    // Create session object
     const resultObj = {
-      id: memberData.id, // Added this line to include the id property
+      id: memberData.id,
       _id: memberData.id.toString(),
       firstName: memberData.first_name,
       lastName: memberData.last_name,
@@ -370,13 +418,22 @@ export async function registerNewMember(prevState, formData) {
       sameSite: "strict",
     });
   } catch (error) {
-    console.log(error);
+    console.error("Registration error:", error);
     return {
+      success: false,
       message:
         "Failed to register: make sure all required fields are completed and try again",
+      formData: {
+        firstName: formDataObj.firstName || "",
+        lastName: formDataObj.lastName || "",
+        email: formDataObj.email || "",
+        pronouns: formDataObj.pronouns || "", // Make sure this is captured from the original form data
+        instagramHandle: formDataObj.instagramHandle || "",
+      },
     };
   }
 
+  // These must be outside try/catch block
   revalidatePath("/");
   redirect("/dashboard/member");
 }

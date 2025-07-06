@@ -15,6 +15,7 @@ const initialState = {
   pronouns: "",
   password: "",
   confirmPassword: "",
+  formData: null,
 };
 
 const SignupForm = () => {
@@ -23,6 +24,9 @@ const SignupForm = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [profilePicDataUrl, setProfilePicDataUrl] = useState("");
+
+  // Use form data from state if available, otherwise use empty strings
+  const formData = state?.formData || {};
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -63,6 +67,7 @@ const SignupForm = () => {
           id="firstName"
           name="firstName"
           placeholder="The name you go by"
+          defaultValue={formData.firstName || ""}
           required
           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
         />
@@ -73,6 +78,7 @@ const SignupForm = () => {
           id="lastName"
           name="lastName"
           placeholder="Full last name"
+          defaultValue={formData.lastName || ""}
           required
           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
         />
@@ -81,7 +87,8 @@ const SignupForm = () => {
         <select
           id="pronouns"
           name="pronouns"
-          defaultValue={""}
+          defaultValue={formData.pronouns || ""}
+          key={`pronouns-${formData.pronouns || "empty"}`} // Force re-render when formData changes
           required
           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
         >
@@ -126,6 +133,7 @@ const SignupForm = () => {
               id="instagramHandle"
               name="instagramHandle"
               placeholder="yourusername"
+              defaultValue={formData.instagramHandle || ""}
               className="w-full p-2 border border-gray-300 rounded-r-md"
             />
           </div>
@@ -168,6 +176,7 @@ const SignupForm = () => {
           id="email"
           name="email"
           placeholder="Will be used as login"
+          defaultValue={formData.email || ""}
           required
           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
         />
@@ -184,6 +193,7 @@ const SignupForm = () => {
             id="password"
             name="password"
             placeholder="6 characters minimum"
+            key={state?.password ? "password-error" : "password-normal"} // Force re-render to clear on error
             required
             className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
           />
@@ -213,6 +223,11 @@ const SignupForm = () => {
             id="confirmPassword"
             name="confirmPassword"
             placeholder="Confirm password"
+            key={
+              state?.confirmPassword
+                ? "confirm-password-error"
+                : "confirm-password-normal"
+            } // Force re-render to clear on error
             required
             className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
           />
@@ -262,6 +277,7 @@ export default SignupForm;
 // import { ImageUploader } from "./ImageUploader";
 
 // const initialState = {
+//   success: null,
 //   message: "",
 //   firstName: "",
 //   lastName: "",
@@ -320,6 +336,7 @@ export default SignupForm;
 //           required
 //           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
 //         />
+
 //         <label htmlFor="lastName">Last Name</label>
 //         <input
 //           type="text"
@@ -329,6 +346,7 @@ export default SignupForm;
 //           required
 //           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
 //         />
+
 //         <label htmlFor="pronouns">Pronouns</label>
 //         <select
 //           id="pronouns"
@@ -424,8 +442,11 @@ export default SignupForm;
 //           className="bg-gray-100 p-2 rounded-l-md border border-r-0 border-gray-300"
 //         />
 //         {state?.email && (
-//           <p className="text-red-500 text-lg text-bold">{state?.email}</p>
+//           <p className="text-red-500 text-lg font-bold" role="alert">
+//             {state.email}
+//           </p>
 //         )}
+
 //         <label htmlFor="password">Password</label>
 //         <div className="flex items-center">
 //           <input
@@ -440,6 +461,7 @@ export default SignupForm;
 //             type="button"
 //             onClick={togglePasswordVisibility}
 //             className="ml-2"
+//             aria-label={showPassword ? "Hide password" : "Show password"}
 //           >
 //             {showPassword ? (
 //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
@@ -449,8 +471,11 @@ export default SignupForm;
 //           </button>
 //         </div>
 //         {state?.password && (
-//           <p className="text-red-500 text-lg text-bold">{state?.password}</p>
+//           <p className="text-red-500 text-lg font-bold" role="alert">
+//             {state.password}
+//           </p>
 //         )}
+
 //         <label htmlFor="confirmPassword">Confirm Password</label>
 //         <div className="flex items-center mb-4">
 //           <input
@@ -465,6 +490,11 @@ export default SignupForm;
 //             type="button"
 //             onClick={toggleConfirmPasswordVisibility}
 //             className="ml-2"
+//             aria-label={
+//               showConfirmPassword
+//                 ? "Hide confirm password"
+//                 : "Show confirm password"
+//             }
 //           >
 //             {showConfirmPassword ? (
 //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
@@ -474,11 +504,17 @@ export default SignupForm;
 //           </button>
 //         </div>
 //         {state?.confirmPassword && (
-//           <p className="text-red-500 text-lg text-bold">
-//             {state?.confirmPassword}
+//           <p className="text-red-500 text-lg font-bold" role="alert">
+//             {state.confirmPassword}
 //           </p>
 //         )}
-//         <p className="text-red-500 text-lg text-bold">{state?.message}</p>
+
+//         {state?.message && (
+//           <p className="text-red-500 text-lg font-bold" role="alert">
+//             {state.message}
+//           </p>
+//         )}
+
 //         <ActionButton className="w-2/5">Sign up</ActionButton>
 //       </div>
 //     </form>
@@ -486,287 +522,3 @@ export default SignupForm;
 // };
 
 // export default SignupForm;
-
-// // "use client";
-
-// // import { useState } from "react";
-// // import { registerNewMember } from "@/app/_actions";
-// // import { useActionState } from "react";
-// // import { ActionButton } from "./ActionButton";
-
-// // const initialState = {
-// //   message: "",
-// //   firstName: "",
-// //   lastName: "",
-// //   email: "",
-// //   pronouns: "",
-// //   password: "",
-// //   confirmPassword: "",
-// // };
-
-// // const SignupForm = () => {
-// //   const [state, formAction] = useActionState(registerNewMember, initialState);
-// //   const [showPassword, setShowPassword] = useState(false);
-// //   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-// //   const togglePasswordVisibility = () => {
-// //     setShowPassword(!showPassword);
-// //   };
-
-// //   const toggleConfirmPasswordVisibility = () => {
-// //     setShowConfirmPassword(!showConfirmPassword);
-// //   };
-
-// //   return (
-// //     <form
-// //       action={formAction}
-// //       className="bg-blue-100 p-4 rounded-md mt-6 w-full lg:w-2/5 mx-auto"
-// //     >
-// //       <h1 className="text-2xl font-bold">Become a Sandsharks Member</h1>
-// //       <div className="flex flex-col gap-3 glassmorphism mt-4">
-// //         <h1>Personal information</h1>
-// //         <label htmlFor="firstName">First Name</label>
-// //         <input
-// //           type="text"
-// //           id="firstName"
-// //           name="firstName"
-// //           placeholder="The name you go by"
-// //           required
-// //         />
-// //         <label htmlFor="lastName">Last Name</label>
-// //         <input
-// //           type="text"
-// //           id="lastName"
-// //           name="lastName"
-// //           placeholder="Full last name"
-// //           required
-// //         />
-// //         <label htmlFor="pronouns">Pronouns</label>
-// //         <select id="pronouns" name="pronouns" defaultValue={""} required>
-// //           <option value="" disabled="disabled">
-// //             Select
-// //           </option>
-// //           <option value="they/them">They/them</option>
-// //           <option value="she/her">She/her</option>
-// //           <option value="he/him">He/him</option>
-// //           <option value="other">Other</option>
-// //         </select>
-// //         <h1>Login information</h1>
-// //         <label htmlFor="email">Email</label>
-// //         <input
-// //           type="email"
-// //           id="email"
-// //           name="email"
-// //           placeholder="Will be used as login"
-// //           required
-// //         />
-// //         {state?.email && (
-// //           <p className="text-red-500 text-lg text-bold">{state?.email}</p>
-// //         )}
-// //         <label htmlFor="password">Password</label>
-// //         <div className="flex items-center">
-// //           <input
-// //             type={showPassword ? "text" : "password"}
-// //             id="password"
-// //             name="password"
-// //             placeholder="6 characters minimum"
-// //             required
-// //             className="block mr-2 flex-grow"
-// //           />
-// //           <button
-// //             type="button"
-// //             onClick={togglePasswordVisibility}
-// //             className="ml-2"
-// //           >
-// //             {showPassword ? (
-// //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
-// //             ) : (
-// //               <img src="/images/icons8-eye-16.png" alt="Show password" />
-// //             )}
-// //           </button>
-// //         </div>
-// //         {state?.password && (
-// //           <p className="text-red-500 text-lg text-bold">{state?.password}</p>
-// //         )}
-// //         <label htmlFor="confirmPassword">Confirm Password</label>
-// //         <div className="flex items-center mb-4">
-// //           <input
-// //             type={showConfirmPassword ? "text" : "password"}
-// //             id="confirmPassword"
-// //             name="confirmPassword"
-// //             placeholder="Confirm password"
-// //             required
-// //             className="block mr-2 flex-grow"
-// //           />
-// //           <button
-// //             type="button"
-// //             onClick={toggleConfirmPasswordVisibility}
-// //             className="ml-2"
-// //           >
-// //             {showConfirmPassword ? (
-// //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
-// //             ) : (
-// //               <img src="/images/icons8-eye-16.png" alt="Show password" />
-// //             )}
-// //           </button>
-// //         </div>
-// //         {state?.confirmPassword && (
-// //           <p className="text-red-500 text-lg text-bold">
-// //             {state?.confirmPassword}
-// //           </p>
-// //         )}
-// //         <p className="text-red-500 text-lg text-bold">{state?.message}</p>
-// //         <ActionButton className="w-2/5">Sign up</ActionButton>
-// //       </div>
-// //     </form>
-// //   );
-// // };
-
-// // export default SignupForm;
-
-// // // "use client";
-
-// // // import { useState } from "react";
-// // // import { registerNewMember } from "@/app/_actions";
-// // // import { useActionState } from "react";
-// // // import { useFormStatus } from "react-dom";
-
-// // // const initialState = {
-// // //   message: "",
-// // //   firstName: "",
-// // //   lastName: "",
-// // //   email: "",
-// // //   pronouns: "",
-// // //   password: "",
-// // //   confirmPassword: "",
-// // // };
-
-// // // function SubmitButton() {
-// // //   const { pending } = useFormStatus();
-
-// // //   return (
-// // //     <button type="submit" aria-disabled={pending} className="btn w-2/5 ">
-// // //       {pending ? "Submitting..." : "Sign up"}
-// // //     </button>
-// // //   );
-// // // }
-
-// // // const SignupForm = () => {
-// // //   const [state, formAction] = useActionState(registerNewMember, initialState);
-// // //   const [showPassword, setShowPassword] = useState(false);
-// // //   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-// // //   const togglePasswordVisibility = () => {
-// // //     setShowPassword(!showPassword);
-// // //   };
-
-// // //   const toggleConfirmPasswordVisibility = () => {
-// // //     setShowConfirmPassword(!showConfirmPassword);
-// // //   };
-
-// // //   return (
-// // //     <form
-// // //       action={formAction}
-// // //       className="bg-blue-100 p-4 rounded-md mt-6 w-full lg:w-2/5 mx-auto"
-// // //     >
-// // //       <h1 className="text-2xl font-bold">Become a Sandsharks Member</h1>
-// // //       <div className="flex flex-col gap-3 glassmorphism mt-4">
-// // //         <h1>Personal information</h1>
-// // //         <label htmlFor="firstName">First Name</label>
-// // //         <input
-// // //           type="text"
-// // //           id="firstName"
-// // //           name="firstName"
-// // //           placeholder="The name you go by"
-// // //           required
-// // //         />
-// // //         <label htmlFor="lastName">Last Name</label>
-// // //         <input
-// // //           type="text"
-// // //           id="lastName"
-// // //           name="lastName"
-// // //           placeholder="Full last name"
-// // //           required
-// // //         />
-// // //         <label htmlFor="pronouns">Pronouns</label>
-// // //         <select id="pronouns" name="pronouns" defaultValue={""} required>
-// // //           <option value="" disabled="disabled">
-// // //             Select
-// // //           </option>
-// // //           <option value="they/them">They/them</option>
-// // //           <option value="she/her">She/her</option>
-// // //           <option value="he/him">He/him</option>
-// // //           <option value="other">Other</option>
-// // //         </select>
-// // //         <h1>Login information</h1>
-// // //         <label htmlFor="email">Email</label>
-// // //         <input
-// // //           type="email"
-// // //           id="email"
-// // //           name="email"
-// // //           placeholder="Will be used as login"
-// // //           required
-// // //         />
-// // //         {state?.email && (
-// // //           <p className="text-red-500 text-lg text-bold">{state?.email}</p>
-// // //         )}
-// // //         <label htmlFor="password">Password</label>
-// // //         <div className="flex items-center">
-// // //           <input
-// // //             type={showPassword ? "text" : "password"}
-// // //             id="password"
-// // //             name="password"
-// // //             placeholder="6 characters minimum"
-// // //             required
-// // //             className="block mr-2 flex-grow"
-// // //           />
-// // //           <button
-// // //             type="button"
-// // //             onClick={togglePasswordVisibility}
-// // //             className="ml-2"
-// // //           >
-// // //             {showPassword ? (
-// // //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
-// // //             ) : (
-// // //               <img src="/images/icons8-eye-16.png" alt="Show password" />
-// // //             )}
-// // //           </button>
-// // //         </div>
-// // //         {state?.password && (
-// // //           <p className="text-red-500 text-lg text-bold">{state?.password}</p>
-// // //         )}
-// // //         <label htmlFor="confirmPassword">Confirm Password</label>
-// // //         <div className="flex items-center mb-4">
-// // //           <input
-// // //             type={showConfirmPassword ? "text" : "password"}
-// // //             id="confirmPassword"
-// // //             name="confirmPassword"
-// // //             placeholder="Confirm password"
-// // //             required
-// // //             className="block mr-2 flex-grow"
-// // //           />
-// // //           <button
-// // //             type="button"
-// // //             onClick={toggleConfirmPasswordVisibility}
-// // //             className="ml-2"
-// // //           >
-// // //             {showConfirmPassword ? (
-// // //               <img src="/images/icons8-hide-16.png" alt="Hide password" />
-// // //             ) : (
-// // //               <img src="/images/icons8-eye-16.png" alt="Show password" />
-// // //             )}
-// // //           </button>
-// // //         </div>
-// // //         {state?.confirmPassword && (
-// // //           <p className="text-red-500 text-lg text-bold">
-// // //             {state?.confirmPassword}
-// // //           </p>
-// // //         )}
-// // //         <p className="text-red-500 text-lg text-bold">{state?.message}</p>
-// // //         <SubmitButton />
-// // //       </div>
-// // //     </form>
-// // //   );
-// // // };
-
-// // // export default SignupForm;
