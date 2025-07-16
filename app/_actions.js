@@ -7507,3 +7507,622 @@ export async function recordGuestDonation(paymentIntentId) {
     };
   }
 }
+
+//////////////////////////////
+//custom email rsvp
+//////////////////////////////
+
+// export async function handleEmailRsvp(token, action) {
+//   try {
+//     // Verify the token
+//     const tokenResult = await sql`
+//       SELECT play_day_id, member_id, expires_at, used
+//       FROM rsvp_tokens
+//       WHERE token = ${token}
+//     `;
+
+//     if (tokenResult.rows.length === 0) {
+//       return { success: false, message: "Invalid token." };
+//     }
+
+//     const tokenData = tokenResult.rows[0];
+
+//     if (tokenData.expires_at < new Date()) {
+//       return { success: false, message: "Token has expired." };
+//     }
+
+//     if (tokenData.used) {
+//       return { success: false, message: "Token already used." };
+//     }
+
+//     const playDayId = tokenData.play_day_id;
+//     const memberId = tokenData.member_id;
+
+//     // Get play day details
+//     const playDayResult = await sql`
+//       SELECT id, title, date
+//       FROM play_days
+//       WHERE id = ${playDayId}
+//     `;
+
+//     if (playDayResult.rows.length === 0) {
+//       return { success: false, message: "Play day not found." };
+//     }
+
+//     const playDay = playDayResult.rows[0];
+
+//     // Toggle attendance based on action
+//     if (action === "yes" || action === "toggle") {
+//       // Check if already attending
+//       const attendanceResult = await sql`
+//         SELECT id FROM attendance
+//         WHERE play_day_id = ${playDayId} AND member_id = ${memberId}
+//       `;
+
+//       if (attendanceResult.rows.length === 0) {
+//         // Add to attendance
+//         await sql`
+//           INSERT INTO attendance (play_day_id, member_id)
+//           VALUES (${playDayId}, ${memberId})
+//         `;
+//         await sql`
+//           UPDATE rsvp_tokens
+//           SET used = TRUE
+//           WHERE token = ${token}
+//         `;
+
+//         return { success: true, message: "RSVP confirmed!", playDay: playDay };
+//       } else {
+//         // Already attending, do nothing
+//         await sql`
+//           UPDATE rsvp_tokens
+//           SET used = TRUE
+//           WHERE token = ${token}
+//         `;
+//         return {
+//           success: true,
+//           message: "Already attending!",
+//           playDay: playDay,
+//         };
+//       }
+//     } else if (action === "no") {
+//       // Remove from attendance
+//       await sql`
+//         DELETE FROM attendance
+//         WHERE play_day_id = ${playDayId} AND member_id = ${memberId}
+//       `;
+//       await sql`
+//         UPDATE rsvp_tokens
+//         SET used = TRUE
+//         WHERE token = ${token}
+//       `;
+//       return { success: true, message: "RSVP cancelled.", playDay: playDay };
+//     } else {
+//       return { success: false, message: "Invalid action." };
+//     }
+//   } catch (error) {
+//     console.error("Error handling email RSVP:", error);
+//     return { success: false, message: "An error occurred. Please try again." };
+//   }
+// }
+
+// export async function sendPlayDayAnnouncement(playDayId, customMessage = "") {
+//   try {
+//     const session = await getSession();
+//     const user = session?.resultObj;
+
+//     if (!user || user.memberType !== "ultrashark") {
+//       return {
+//         success: false,
+//         message: "You must be logged in as an admin to send announcements",
+//       };
+//     }
+
+//     // Get play day details - using your actual table structure
+//     const playDayResult = await sql`
+//       SELECT
+//         id, title, description, date, start_time, end_time, courts,
+//         main_volunteer_id, helper_volunteer_id, sponsor_id
+//       FROM play_days
+//       WHERE id = ${playDayId}
+//     `;
+
+//     if (playDayResult.rows.length === 0) {
+//       return {
+//         success: false,
+//         message: "Play day not found",
+//       };
+//     }
+
+//     const playDay = playDayResult.rows[0];
+
+//     // Get all members who have opted into emails
+//     const membersResult = await sql`
+//       SELECT id, first_name, last_name, email
+//       FROM members
+//       WHERE email_list = true AND member_type != 'pending'
+//     `;
+
+//     if (membersResult.rows.length === 0) {
+//       return {
+//         success: false,
+//         message: "No members found who have opted in to emails",
+//       };
+//     }
+
+//     const members = membersResult.rows;
+
+//     // Generate or get existing RSVP tokens for each member
+//     const tokenPromises = members.map(async (member) => {
+//       // Check if token already exists and is still valid
+//       const existingTokenResult = await sql`
+//         SELECT token FROM rsvp_tokens
+//         WHERE play_day_id = ${playDayId}
+//         AND member_id = ${member.id}
+//         AND expires_at > NOW()
+//         AND used = FALSE
+//       `;
+
+//       if (existingTokenResult.rows.length > 0) {
+//         return {
+//           memberId: member.id,
+//           token: existingTokenResult.rows[0].token,
+//         };
+//       }
+
+//       // Create new token (expires in 7 days)
+//       const expiresAt = new Date();
+//       expiresAt.setDate(expiresAt.getDate() + 7);
+
+//       // Insert and let database generate UUID automatically
+//       const tokenResult = await sql`
+//         INSERT INTO rsvp_tokens (play_day_id, member_id, expires_at)
+//         VALUES (${playDayId}, ${member.id}, ${expiresAt})
+//         ON CONFLICT (play_day_id, member_id)
+//         DO UPDATE SET
+//           expires_at = ${expiresAt},
+//           used = FALSE
+//         RETURNING token
+//       `;
+
+//       return {
+//         memberId: member.id,
+//         token: tokenResult.rows[0].token,
+//       };
+//     });
+
+//     const tokens = await Promise.all(tokenPromises);
+//     const tokenMap = new Map(tokens.map((t) => [t.memberId, t.token]));
+
+//     // Format date and time
+//     const date = new Date(playDay.date);
+//     const formattedDate = date.toLocaleDateString("en-US", {
+//       weekday: "long",
+//       year: "numeric",
+//       month: "long",
+//       day: "numeric",
+//     });
+
+//     const formatTime = (timeString) => {
+//       const [hours, minutes] = timeString.split(":");
+//       const hour = Number.parseInt(hours);
+//       const ampm = hour >= 12 ? "PM" : "AM";
+//       const displayHour = hour % 12 || 12;
+//       return `${displayHour}:${minutes} ${ampm}`;
+//     };
+
+//     const timeRange = `${formatTime(playDay.start_time)} - ${formatTime(
+//       playDay.end_time
+//     )}`;
+
+//     // Send emails using Resend with rate limiting
+//     const { Resend } = await import("resend");
+//     const resend = new Resend(process.env.RESEND_API_KEY);
+
+//     // Function to delay execution
+//     const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+//     // Send emails with rate limiting (1.5 requests per second to be safe)
+//     const RATE_LIMIT_DELAY = 700; // 700ms delay = ~1.4 requests per second
+
+//     let successCount = 0;
+//     let failureCount = 0;
+//     const failedEmails = [];
+
+//     console.log(
+//       `Starting to send ${members.length} emails with rate limiting...`
+//     );
+
+//     for (let i = 0; i < members.length; i++) {
+//       const member = members[i];
+
+//       try {
+//         const token = tokenMap.get(member.id);
+//         const baseUrl =
+//           process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+//         const rsvpYesUrl = `${baseUrl}/api/rsvp/${token}?action=yes`;
+//         const rsvpNoUrl = `${baseUrl}/api/rsvp/${token}?action=no`;
+//         const dashboardUrl = `${baseUrl}/dashboard/member`;
+
+//         const emailHtml = `
+// <!DOCTYPE html>
+// <html>
+// <head>
+//   <meta charset="utf-8">
+//   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//   <title>Sandsharks Play Day - ${playDay.title}</title>
+// </head>
+// <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+//   <div style="max-width: 600px; margin: 0 auto; background-color: white;">
+//     <!-- Header -->
+//     <div style="background-color: #1e40af; color: white; padding: 30px 20px; text-align: center;">
+//       <h1 style="margin: 0; font-size: 28px; font-weight: bold;">Sandsharks Volleyball</h1>
+//     </div>
+
+//     <!-- Content -->
+//     <div style="padding: 30px 20px;">
+//       <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 24px;">Hi ${
+//         member.first_name
+//       }!</h2>
+
+//       <div style="font-size: 16px; line-height: 1.6; color: #374151; margin: 0 0 30px 0;">
+//         <p>We'll be playing Friday nights for the next few weeks as the OVA and Volleyball Canada have all the courts booked over the next 5 weekends, PLUS I'm planning to set up on Monday August 4 for the long weekend!</p>
+
+//         <p>I've been chatting with TSVL about organizing a big ol' gay crossover event on August 4: <strong>Sandsharks x Spartans!</strong></p>
+
+//         <p><strong>Here's what I'm thinking:</strong></p>
+//         <ul style="margin: 10px 0; padding-left: 20px;">
+//           <li>Open play from 9am - 12pm</li>
+//           <li>Learn-to-play from 10am - 12pm for any indoor players who want to learn how to apply their skills to 2v2 beach volleyball</li>
+//           <li>Beach volleyball "Sandsharks style" tournament from 12-3pm</li>
+//         </ul>
+
+//         <p>The tournament is for everyone! All skill levels are welcome to play (it's all about having fun afterall). The tournament would be totally voluntary, people can continue to play regular games as usual.</p>
+
+//         <p><strong>For those who want to play in the tournament, here's how it'll work:</strong></p>
+//         <ul style="margin: 10px 0; padding-left: 20px;">
+//           <li>every game you'll be randomly assigned a partner</li>
+//           <li>at the end of every game each player will record the points their team earned that game</li>
+//           <li>at the end of all the games, the individual players with the most total points will battle it out for the top spot in a round of "queens" style best of 3 series (4 players total, each player plays one game with each other player for a total of 3 games). The player with the most total points from those 3 games will become the winner and crowned the first-ever <strong>SuperShark!</strong></li>
+//         </ul>
+
+//         <p>So all that being said, I'd like to get a sense of how many people will be around for August 4 to play. If you want to come play, regardless of playing the tournament style or just regular gameplay, can you click the button below by the end of this week to let me know 🙂</p>
+
+//         <p>(don't worry, you can still sign up later, I just want to get a rough idea of how many people to expect).</p>
+//       </div>
+
+//       <!-- Event Details Box -->
+//       <div style="background-color: #f8fafc; border-left: 4px solid #1e40af; padding: 20px; margin: 20px 0;">
+//         <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 20px;">${
+//           playDay.title
+//         }</h3>
+//         <div style="font-size: 16px; color: #374151; line-height: 1.6;">
+//           <p style="margin: 5px 0;"><strong>📅 Date:</strong> ${formattedDate}</p>
+//           <p style="margin: 5px 0;"><strong>⏰ Time:</strong> ${timeRange}</p>
+//           ${
+//             playDay.courts
+//               ? `<p style="margin: 5px 0;"><strong>🏐 Courts:</strong> ${playDay.courts}</p>`
+//               : ""
+//           }
+//           ${
+//             playDay.description
+//               ? `<p style="margin: 15px 0 5px 0;"><strong>Details:</strong></p><p style="margin: 5px 0;">${playDay.description}</p>`
+//               : ""
+//           }
+//         </div>
+//       </div>
+
+//       ${
+//         customMessage
+//           ? `
+//         <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0;">
+//           <p style="margin: 0; font-size: 16px; color: #92400e; line-height: 1.6;">${customMessage}</p>
+//         </div>
+//       `
+//           : ""
+//       }
+
+//       <!-- RSVP Buttons -->
+//       <div style="text-align: center; margin: 30px 0;">
+//         <div style="display: inline-block;">
+//           <a href="${rsvpYesUrl}"
+//              style="display: inline-block; background-color: #22c55e; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 0 10px;">
+//             🏐 I'll be there!
+//           </a>
+
+//           <a href="${rsvpNoUrl}"
+//              style="display: inline-block; background-color: #ef4444; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 0 10px;">
+//             ❌ Can't make it
+//           </a>
+//         </div>
+//       </div>
+
+//       <div style="text-align: center; margin: 20px 0;">
+//         <p style="font-size: 14px; color: #6b7280; margin: 0 0 10px 0;">
+//           Or manage your RSVP on the website:
+//         </p>
+//         <a href="${dashboardUrl}"
+//            style="color: #1e40af; text-decoration: none; font-size: 14px;">
+//           Visit Member Dashboard →
+//         </a>
+//       </div>
+
+//       <div style="margin: 30px 0; padding: 20px; background-color: #f0f9ff; border-radius: 8px;">
+//         <p style="margin: 0; font-size: 16px; color: #1e40af; text-align: center;">
+//           Thanks everybody! See you on Friday 🙂<br>
+//           <strong>-Cip</strong>
+//         </p>
+//       </div>
+//     </div>
+
+//     <!-- Footer -->
+//     <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
+//               <p>You're receiving this email because you're signed up as a member of <a href="https://www.sandsharks.ca">Toronto Sandsharks Beach Volleyball League</a>.</p>
+
+//                    <p>If you no longer wish to receive emails from Sandsharks: <a href="${baseUrl}/unsubscribe">click here to unsubscribe</a></p>
+
+//     </div>
+//   </div>
+// </body>
+// </html>
+// `;
+
+//         const result = await resend.emails.send({
+//           // from: process.env.FROM_EMAIL || "noreply@sandsharks.org",
+//           // to: member.email,
+//           from: "sandsharks@sandsharks.ca",
+//           to: "cdvsignupspare@gmail.com",
+//           subject: `Sandsharks Play Day: ${playDay.title} - ${formattedDate}`,
+//           html: emailHtml,
+//           replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
+//         });
+
+//         successCount++;
+//         console.log(
+//           `✅ Email ${i + 1}/${members.length} sent successfully to ${
+//             member.email
+//           }`
+//         );
+//       } catch (error) {
+//         failureCount++;
+//         failedEmails.push({ email: member.email, error: error.message });
+//         console.error(
+//           `❌ Email ${i + 1}/${members.length} failed for ${member.email}:`,
+//           error.message
+//         );
+//       }
+
+//       // Add delay between requests (except for the last one)
+//       if (i < members.length - 1) {
+//         await delay(RATE_LIMIT_DELAY);
+//       }
+//     }
+
+//     console.log(
+//       `Email sending complete. Success: ${successCount}, Failed: ${failureCount}`
+//     );
+
+//     if (failedEmails.length > 0) {
+//       console.error("Failed emails:", failedEmails);
+//     }
+
+//     // Record the email blast
+//     await sql`
+//       INSERT INTO email_blasts (
+//         sender_id,
+//         subject,
+//         message,
+//         sent_at,
+//         member_group,
+//         recipient_count,
+//         template
+//       )
+//       VALUES (
+//         ${user.id},
+//         ${"Play Day Announcement: " + playDay.title},
+//         ${customMessage || "Play day announcement with RSVP"},
+//         ${new Date()},
+//         ${"all"},
+//         ${successCount},
+//         ${"play_day_announcement"}
+//       )
+//     `;
+
+//     if (failureCount > 0) {
+//       console.error(`${failureCount} emails failed to send`);
+//     }
+
+//     return {
+//       success: true,
+//       message: `Announcement sent successfully to ${successCount} members!`,
+//       recipientCount: successCount,
+//       failureCount: failureCount,
+//     };
+//   } catch (error) {
+//     console.error("Error sending play day announcement:", error);
+//     return {
+//       success: false,
+//       message: "Failed to send announcement. Please try again.",
+//     };
+//   }
+// }
+
+export async function handleEmailRsvp(token, action) {
+  try {
+    // Verify the token
+    const tokenResult = await sql`
+      SELECT play_day_id, member_id, expires_at, used
+      FROM rsvp_tokens
+      WHERE token = ${token}
+    `;
+
+    if (tokenResult.rows.length === 0) {
+      return { success: false, message: "Invalid token." };
+    }
+
+    const tokenData = tokenResult.rows[0];
+
+    if (tokenData.expires_at < new Date()) {
+      return { success: false, message: "Token has expired." };
+    }
+
+    if (tokenData.used) {
+      return { success: false, message: "Token already used." };
+    }
+
+    const playDayId = tokenData.play_day_id;
+    const memberId = tokenData.member_id;
+
+    // Get play day details
+    const playDayResult = await sql`
+      SELECT id, title, date
+      FROM play_days
+      WHERE id = ${playDayId}
+    `;
+
+    if (playDayResult.rows.length === 0) {
+      return { success: false, message: "Play day not found." };
+    }
+
+    const playDay = playDayResult.rows[0];
+
+    // Toggle attendance based on action
+    if (action === "yes" || action === "toggle") {
+      // Check if already attending
+      const attendanceResult = await sql`
+        SELECT id FROM attendance
+        WHERE play_day_id = ${playDayId} AND member_id = ${memberId}
+      `;
+
+      if (attendanceResult.rows.length === 0) {
+        // Add to attendance
+        await sql`
+          INSERT INTO attendance (play_day_id, member_id)
+          VALUES (${playDayId}, ${memberId})
+        `;
+        await sql`
+          UPDATE rsvp_tokens
+          SET used = TRUE
+          WHERE token = ${token}
+        `;
+
+        return { success: true, message: "RSVP confirmed!", playDay: playDay };
+      } else {
+        // Already attending, do nothing
+        await sql`
+          UPDATE rsvp_tokens
+          SET used = TRUE
+          WHERE token = ${token}
+        `;
+        return {
+          success: true,
+          message: "Already attending!",
+          playDay: playDay,
+        };
+      }
+    } else if (action === "no") {
+      // Remove from attendance
+      await sql`
+        DELETE FROM attendance
+        WHERE play_day_id = ${playDayId} AND member_id = ${memberId}
+      `;
+      await sql`
+        UPDATE rsvp_tokens
+        SET used = TRUE
+        WHERE token = ${token}
+      `;
+      return { success: true, message: "RSVP cancelled.", playDay: playDay };
+    } else {
+      return { success: false, message: "Invalid action." };
+    }
+  } catch (error) {
+    console.error("Error handling email RSVP:", error);
+    return { success: false, message: "An error occurred. Please try again." };
+  }
+}
+
+// New function to queue email jobs
+export async function queuePlayDayAnnouncement(playDayId, customMessage = "") {
+  "use server";
+
+  try {
+    const session = await getSession();
+    const user = session?.resultObj;
+
+    if (!user || user.memberType !== "ultrashark") {
+      return {
+        success: false,
+        message: "You must be logged in as an admin to send announcements",
+      };
+    }
+
+    // Create a job record
+    const jobResult = await sql`
+      INSERT INTO email_jobs (
+        play_day_id,
+        custom_message,
+        created_by,
+        status,
+        created_at
+      )
+      VALUES (
+        ${playDayId},
+        ${customMessage || ""},
+        ${user.id},
+        'queued',
+        ${new Date()}
+      )
+      RETURNING id
+    `;
+
+    const jobId = jobResult.rows[0].id;
+
+    // Trigger the background job processing
+    try {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+      await fetch(`${baseUrl}/api/process-email-jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("Error triggering background job:", error);
+      // Job is still queued, it can be processed later
+    }
+
+    return {
+      success: true,
+      message: "Email announcement has been queued and will be sent shortly!",
+      jobId: jobId,
+    };
+  } catch (error) {
+    console.error("Error queueing announcement:", error);
+    return {
+      success: false,
+      message: "Failed to queue announcement. Please try again.",
+    };
+  }
+}
+
+// Function to check job status
+export async function getEmailJobStatus(jobId) {
+  "use server";
+
+  try {
+    const result = await sql`
+      SELECT status, success_count, failure_count, error_message, created_at, completed_at
+      FROM email_jobs
+      WHERE id = ${jobId}
+    `;
+
+    if (result.rows.length === 0) {
+      return { success: false, message: "Job not found" };
+    }
+
+    return { success: true, job: result.rows[0] };
+  } catch (error) {
+    console.error("Error getting job status:", error);
+    return { success: false, message: "Error checking job status" };
+  }
+}
