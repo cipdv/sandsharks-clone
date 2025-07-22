@@ -7387,6 +7387,69 @@ export async function createGuestPaymentIntent(amount, guestInfo = {}) {
 }
 
 // Guest registration action
+// export async function registerGuestOnly(prevState, formData) {
+//   console.log("Server action: registerGuestOnly called");
+
+//   try {
+//     const firstName = formData.get("firstName");
+//     const lastName = formData.get("lastName");
+//     const email = formData.get("email");
+//     const photoConsent = formData.get("photoConsent") === "on";
+//     const waiverAgreement = formData.get("waiverAgreement") === "on";
+
+//     // Validate required fields
+//     if (!firstName || !lastName || !email || !waiverAgreement) {
+//       return {
+//         success: false,
+//         message: "Please fill in all required fields and agree to the waiver.",
+//       };
+//     }
+
+//     // Validate email format
+//     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+//     if (!emailRegex.test(email)) {
+//       return {
+//         success: false,
+//         message: "Please enter a valid email address.",
+//       };
+//     }
+
+//     // Check if email already exists
+//     const existingGuest = await sql`
+//       SELECT id FROM guests WHERE email = ${email}
+//     `;
+
+//     if (existingGuest.rows.length > 0) {
+//       return {
+//         success: false,
+//         message: "This email address is already registered as a guest.",
+//       };
+//     }
+
+//     // Insert new guest
+//     const result = await sql`
+//       INSERT INTO guests (first_name, last_name, email, photo_release, waiver_confirmed_at)
+//       VALUES (${firstName}, ${lastName}, ${email}, ${photoConsent}, CURRENT_TIMESTAMP)
+//       RETURNING id
+//     `;
+
+//     const guestId = result.rows[0].id;
+//     console.log("Guest registered with ID:", guestId);
+
+//     return {
+//       success: true,
+//       message: "Registration successful!",
+//       guestId,
+//     };
+//   } catch (error) {
+//     console.error("Guest registration error:", error);
+//     return {
+//       success: false,
+//       message: "Registration failed: " + (error.message || "Unknown error"),
+//     };
+//   }
+// }
+
 export async function registerGuestOnly(prevState, formData) {
   console.log("Server action: registerGuestOnly called");
 
@@ -7397,11 +7460,47 @@ export async function registerGuestOnly(prevState, formData) {
     const photoConsent = formData.get("photoConsent") === "on";
     const waiverAgreement = formData.get("waiverAgreement") === "on";
 
-    // Validate required fields
-    if (!firstName || !lastName || !email || !waiverAgreement) {
+    // Get the existing new fields
+    const participationType = formData.get("participationType"); // "tournament" or "dropIn"
+    const attendLearnToPlay = formData.get("attendLearnToPlay") === "on";
+
+    // Get the volleyball level fields
+    const volleyballLevelForm = formData.get("volleyballLevel");
+    const competitivePool = formData.get("competitivePool");
+
+    // Determine the final volleyball level value
+    let volleyballLevel;
+    if (volleyballLevelForm === "competitive" && competitivePool) {
+      volleyballLevel = competitivePool; // Use the pool letter (A-L)
+    } else if (
+      volleyballLevelForm === "recreational" ||
+      volleyballLevelForm === "intermediate"
+    ) {
+      volleyballLevel = volleyballLevelForm;
+    } else {
+      volleyballLevel = null;
+    }
+
+    // Validate required fields (including volleyball level)
+    if (
+      !firstName ||
+      !lastName ||
+      !email ||
+      !waiverAgreement ||
+      !participationType ||
+      !volleyballLevel
+    ) {
       return {
         success: false,
         message: "Please fill in all required fields and agree to the waiver.",
+      };
+    }
+
+    // Additional validation for competitive level
+    if (volleyballLevelForm === "competitive" && !competitivePool) {
+      return {
+        success: false,
+        message: "Please select your highest competitive pool played.",
       };
     }
 
@@ -7426,10 +7525,31 @@ export async function registerGuestOnly(prevState, formData) {
       };
     }
 
-    // Insert new guest
+    // Convert participationType from form value to database value
+    const signUpFor = participationType === "dropIn" ? "drop_in" : "tournament";
+
+    // Insert new guest with all fields including volleyball level
     const result = await sql`
-      INSERT INTO guests (first_name, last_name, email, photo_release, waiver_confirmed_at)
-      VALUES (${firstName}, ${lastName}, ${email}, ${photoConsent}, CURRENT_TIMESTAMP)
+      INSERT INTO guests (
+        first_name, 
+        last_name, 
+        email, 
+        photo_release, 
+        waiver_confirmed_at,
+        sign_up_for,
+        clinic,
+        volleyball_level
+      )
+      VALUES (
+        ${firstName}, 
+        ${lastName}, 
+        ${email}, 
+        ${photoConsent}, 
+        CURRENT_TIMESTAMP,
+        ${signUpFor},
+        ${attendLearnToPlay},
+        ${volleyballLevel}
+      )
       RETURNING id
     `;
 

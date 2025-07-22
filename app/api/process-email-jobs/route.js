@@ -186,47 +186,13 @@ async function processEmailJob(job) {
 
     <!-- Content -->
     <div style="padding: 30px 20px;">
-      <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 24px;">Hi ${
-        member.first_name
-      }!</h2>
+      <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 24px;">Hi ${member.first_name}!</h2>
       
       <div style="font-size: 16px; line-height: 1.6; color: #374151; margin: 0 0 30px 0;">
-        <p>We'll be playing Friday nights for the next few weeks as the OVA and Volleyball Canada have all the courts booked over the next 5 weekends, PLUS I'm planning to set up on Monday August 4 for the long weekend!</p>
-        
-        <p>I've been chatting with TSVL (our sister indoor volleyball league) about organizing a big ol' gay crossover event on August 4: <strong>Sandsharks x Spartans!</strong></p>
-        
-        <p><strong>Here's what I'm thinking:</strong></p>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li>Open play from 9am - 12pm</li>
-          <li>Learn-to-play from 10am - 12pm for any indoor players who want to learn how to apply their skills to 2v2 beach volleyball</li>
-          <li>Beach volleyball "Sandsharks style" tournament from 12-3pm</li>
-        </ul>
-        
-        <p>The tournament is for everyone! All skill levels are welcome to play (it's all about having fun afterall). The tournament would be totally voluntary, people can continue to play regular games as usual.</p>
-        
-        <p><strong>For those who want to play in the tournament, here's how it'll work:</strong></p>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li>every game you'll be randomly assigned a partner</li>
-          <li>at the end of every game each player will record the points their team earned that game</li>
-          <li>at the end of all the games, the individual players with the most total points will battle it out for the top spot in a round of "queens" style best of 3 series (4 players total, each player plays one game with each other player for a total of 3 games). The player with the most total points from those 3 games will become the winner and crowned the first-ever <strong>SuperShark!</strong></li>
-        </ul>
-        
-        <p>So all that being said, I'd like to get a sense of how many people will be around for August 4 to play. If you want to come play, regardless of playing the tournament style or just regular gameplay, can you click the button below by July 20 to let me know 🙂</p>
-        
-        <p>(don't worry, you can still sign up later by logging in to sandsharks.ca, I just want to get a rough idea now of how many people to expect).</p>
-      </div>
+      <p>Oops, that's embarassing, I made a typo in the button URL in the last email, here's the REAL "I'll be there" button :)</p>
+      <p>Click the button below if you want to come play on August 4!</p>
 
       
-
-      ${
-        job.custom_message
-          ? `
-        <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0;">
-          <p style="margin: 0; font-size: 16px; color: #92400e; line-height: 1.6;">${job.custom_message}</p>
-        </div>
-      `
-          : ""
-      }
 
       <!-- RSVP Buttons -->
       <div style="text-align: center; margin: 30px 0;">
@@ -242,7 +208,7 @@ async function processEmailJob(job) {
 
       <div style="text-align: center; margin: 20px 0;">
         <p style="font-size: 14px; color: #6b7280; margin: 0 0 10px 0;">
-          Testing out this new RSVP button in emails, so if it doesn't work for you let me know.
+          Testing out this new RSVP button in emails, so if it STILL doesn't work for you let me know.
         </p>
         
       </div>
@@ -270,7 +236,7 @@ async function processEmailJob(job) {
           from: "sandsharks@sandsharks.ca",
           to: member.email,
 
-          subject: `Sandsharks Play Day: ${playDay.title} - ${formattedDate}`,
+          subject: `Oops, here's the real RSVP link for August 4!`,
           html: emailHtml,
           replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
         });
