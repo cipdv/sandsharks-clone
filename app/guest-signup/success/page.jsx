@@ -18,10 +18,10 @@ export default function GuestSignupSuccess() {
         <p className="text-green-700 mb-4">
           Thanks for signing up for our August 4 event!
         </p>
-        <p className="text-green-700 mb-4">
+        {/* <p className="text-green-700 mb-4">
           Check your email for all the details (if you didn't receive an email,
           check your junk folder).
-        </p>
+        </p> */}
         <p className="text-green-700 mb-4">
           If you have any questions, email us at sandsharks.org@gmail.com
         </p>
