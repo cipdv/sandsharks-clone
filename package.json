@@ -18,7 +18,7 @@
     "cloudinary": "^2.1.0",
     "jose": "^5.2.3",
     "lucide-react": "^0.483.0",
-    "next": "^15.2.3",
+    "next": "15.2.8",
     "react": "^18",
     "react-dom": "^18",
     "resend": "^4.1.2",
