@@ -495,3 +495,18 @@ export function renderSponsorRejectionEmail({
     templateType: "default",
   });
 }
+
+export function renderSeasonAnnouncementEmail({
+  subject = "Sandsharks Season Announcement",
+  preheaderText = "Latest updates for the Sandsharks season",
+  content = "",
+  memberId,
+}) {
+  return EmailTemplate({
+    subject,
+    preheaderText,
+    content,
+    memberId,
+    templateType: "update",
+  });
+}

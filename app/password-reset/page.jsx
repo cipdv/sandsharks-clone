@@ -9,7 +9,7 @@ const initialState = {
   error: "",
 }
 
-const passwordResetPage = () => {
+const PasswordResetPage = () => {
   const router = useRouter()
   const [state, formAction, isPending] = useActionState(sendPasswordReset, initialState)
 
@@ -44,6 +44,6 @@ const passwordResetPage = () => {
   )
 }
 
-export default passwordResetPage
+export default PasswordResetPage
 
 

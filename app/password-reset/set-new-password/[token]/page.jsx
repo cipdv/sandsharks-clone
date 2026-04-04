@@ -13,7 +13,7 @@ const initialState = {
   error: "",
 }
 
-const setNewPasswordPage = ({ params }) => {
+const SetNewPasswordPage = ({ params }) => {
   const router = useRouter()
   // Unwrap params with React.use()
   const resolvedParams = use(params)
@@ -126,7 +126,7 @@ const setNewPasswordPage = ({ params }) => {
   )
 }
 
-export default setNewPasswordPage
+export default SetNewPasswordPage
 
 
 
