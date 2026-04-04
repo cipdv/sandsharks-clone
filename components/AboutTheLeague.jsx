@@ -7,7 +7,7 @@ const AboutTheLeague = () => {
       <p>
         Toronto Sandsharks is a volunteer run, non-profit driven group of LGBTQ+
         people who call themselves beach volleyball players. We've been playing
-        as a group at Woodbine Beach in Toronto since 1998.
+        as a group at Ashbridges Bay in Toronto since 1998.
       </p>
       <br />
       <p>We operate solely by volunteers and donations from our members.</p>
@@ -44,11 +44,11 @@ const AboutTheLeague = () => {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Woodbine Beach
+          Ashbridges Bay at Woodbine Beach Park
         </a>{" "}
-        in the Toronto Beaches. This is a public beach, so please do your best
-        to familiarize yourself with and follow the rules of the beach so that
-        we keep our good reputation with all beach goers.
+        . This is a public beach, so please do your best to familiarize yourself
+        with and follow the rules of the beach so that we keep our good
+        reputation with all beach goers.
       </p>
       <br />
       <p>

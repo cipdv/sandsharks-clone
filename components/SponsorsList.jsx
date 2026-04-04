@@ -40,6 +40,7 @@ const SponsorsList = ({ sponsors = [], isAdmin = false }) => {
                     src={sponsor.logo_url || "/placeholder.svg"}
                     alt={sponsor.name}
                     fill
+                    unoptimized
                     className="object-contain"
                   />
                 </div>

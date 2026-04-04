@@ -18,6 +18,7 @@ export default function LoadingSpinner() {
           alt="Loading..."
           width={60}
           height={60}
+          unoptimized
           className="object-contain"
           priority
         />

@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
+import nodemailer from "nodemailer";
 import { getSession, encrypt } from "@/app/lib/auth";
 import Stripe from "stripe";
 import { sendEmail } from "@/app/lib/email-sender";
@@ -187,12 +188,12 @@ export async function registerNewMember(prevState, formData) {
   if (result.error) {
     // Find specific validation errors
     const passwordError = result.error.issues.find(
-      (issue) => issue.path[0] === "password" && issue.code === "too_small"
+      (issue) => issue.path[0] === "password" && issue.code === "too_small",
     );
 
     const confirmPasswordError = result.error.issues.find(
       (issue) =>
-        issue.path[0] === "confirmPassword" && issue.code === "too_small"
+        issue.path[0] === "confirmPassword" && issue.code === "too_small",
     );
 
     const emailError = result.error.issues.find((issue) => {
@@ -716,7 +717,7 @@ export async function sendPasswordReset(prevState, formData) {
     // Create the reset URL
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
     const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(
-      token
+      token,
     )}`;
 
     // const resetURL = `${baseUrl}/password-reset/set-new-password/${encodeURIComponent(token)}`;
@@ -829,7 +830,7 @@ export async function setNewPassword(prevState, formData) {
     } catch (emailError) {
       console.error(
         "Error sending password reset confirmation email:",
-        emailError
+        emailError,
       );
       // Continue with the password reset process even if the email fails
     }
@@ -1405,6 +1406,105 @@ export async function confirmWaiver(formData) {
 //     throw new Error("Failed to submit survey");
 //   }
 // }
+
+export async function submitSurvey(prevState, formData) {
+  try {
+    const email = formData.get("email").toLowerCase().trim();
+
+    // Check if the email exists in the members table
+    const memberResult = await sql`
+      SELECT id, first_name, last_name 
+      FROM members 
+      WHERE email = ${email}
+    `;
+
+    if (memberResult.rows.length === 0) {
+      return {
+        success: false,
+        message:
+          "This email address isn't registered at sandsharks.ca, please check the spelling.",
+      };
+    }
+
+    const member = memberResult.rows[0];
+
+    // Extract form data
+    const feedback = formData.get("feedback") || "";
+    const fridayEvenings = formData.get("fridayEvenings") === "true";
+    const saturdays = formData.get("saturdays") === "true";
+    const saturdayStartTime = saturdays
+      ? formData.get("saturdayStartTime")
+      : null;
+    const saturdayEndTime = saturdays ? formData.get("saturdayEndTime") : null;
+    const sundays = formData.get("sundays") === "true";
+    const sundayStartTime = sundays ? formData.get("sundayStartTime") : null;
+    const sundayEndTime = sundays ? formData.get("sundayEndTime") : null;
+
+    // Merchandise preferences
+    const merchandiseHat = formData.get("merchandise.hat") === "true";
+    const merchandiseTankTop = formData.get("merchandise.tankTop") === "true";
+    const merchandiseTShirt = formData.get("merchandise.tShirt") === "true";
+    const merchandiseOther = formData.get("merchandise.other") === "true";
+    const merchandiseOtherIdea = merchandiseOther
+      ? formData.get("merchandise.otherIdea") || ""
+      : "";
+
+    // Insert survey response
+    await sql`
+      INSERT INTO survey_responses (
+        member_id,
+        first_name,
+        last_name,
+        email,
+        feedback,
+        friday_evenings,
+        saturdays,
+        saturday_start_time,
+        saturday_end_time,
+        sundays,
+        sunday_start_time,
+        sunday_end_time,
+        merchandise_hat,
+        merchandise_tank_top,
+        merchandise_t_shirt,
+        merchandise_other,
+        merchandise_other_idea,
+        created_at
+      ) VALUES (
+        ${member.id},
+        ${member.first_name},
+        ${member.last_name},
+        ${email},
+        ${feedback},
+        ${fridayEvenings},
+        ${saturdays},
+        ${saturdayStartTime},
+        ${saturdayEndTime},
+        ${sundays},
+        ${sundayStartTime},
+        ${sundayEndTime},
+        ${merchandiseHat},
+        ${merchandiseTankTop},
+        ${merchandiseTShirt},
+        ${merchandiseOther},
+        ${merchandiseOtherIdea},
+        ${new Date()}
+      )
+    `;
+
+    return {
+      success: true,
+      message:
+        "Thank you for your feedback! Your survey response has been submitted successfully.",
+    };
+  } catch (error) {
+    console.error("Error submitting survey:", error);
+    return {
+      success: false,
+      message: "There was an error submitting your survey. Please try again.",
+    };
+  }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //ultrashark admin
@@ -2394,7 +2494,7 @@ export async function getPlayDays() {
         }));
 
         return playDay;
-      })
+      }),
     );
 
     return playDays;
@@ -3086,11 +3186,11 @@ export async function getPlayDaysForMembers() {
             memberId: request.member_id,
             status: request.status,
             createdAt: request.created_at,
-          })
+          }),
         );
 
         return playDay;
-      })
+      }),
     );
 
     return playDays;
@@ -3378,7 +3478,7 @@ export async function cancelPlayDay(formData) {
 
     // Create a time range string
     const timeRange = `${formatTime(playDay.start_time)} - ${formatTime(
-      playDay.end_time
+      playDay.end_time,
     )}`;
 
     // Send cancellation emails to members who opted in
@@ -3556,7 +3656,7 @@ export async function createPaymentIntent(amountInCents, notes = "") {
   } catch (error) {
     console.error("Error creating payment intent:", error);
     throw new Error(
-      error.message || "An error occurred while processing your donation"
+      error.message || "An error occurred while processing your donation",
     );
   }
 }
@@ -3629,7 +3729,7 @@ export async function handleDonationSuccess(paymentIntentId) {
     // If donation already exists, don't record it again
     if (existingDonation.rows.length > 0) {
       console.log(
-        `Donation for payment ${paymentIntentId} already recorded, skipping`
+        `Donation for payment ${paymentIntentId} already recorded, skipping`,
       );
       return { success: true, alreadyRecorded: true };
     }
@@ -3703,7 +3803,7 @@ export async function handleDonationSuccess(paymentIntentId) {
       if (!emailResult.success) {
         console.error(
           "Error sending donation thank you email:",
-          emailResult.error
+          emailResult.error,
         );
         // Continue with the function even if email sending fails
       }
@@ -3948,7 +4048,7 @@ export async function handleEmailAction(action, id, expires, signature) {
       if (!emailResult.success) {
         console.error(
           "Error sending unsubscribe confirmation email:",
-          emailResult.error
+          emailResult.error,
         );
         // Continue even if email fails
       } else {
@@ -4081,7 +4181,7 @@ function simpleMarkdownToHtml(text) {
   // Replace links
   text = text.replace(
     /\[(.*?)\]$$(.*?)$$/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
   );
 
   // Replace line breaks with <br> tags
@@ -4314,6 +4414,154 @@ const emailTemplates = {
 //   }
 // }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// Current implementation using sendBatchEmails + Resend kept for later reuse.
+// export async function sendEmailBlast(formData) {
+//   try {
+//     const session = await getSession();
+//     const user = session?.resultObj;
+//
+//     if (!user) {
+//       return {
+//         success: false,
+//         message: "You must be logged in to send email blasts",
+//       };
+//     }
+//
+//     const subject = formData.get("subject");
+//     const emailContent = formData.get("emailContent");
+//     const template = formData.get("template") || "default";
+//     const memberGroup = formData.get("memberGroup");
+//
+//     if (!subject || !emailContent || !memberGroup) {
+//       return {
+//         success: false,
+//         message: "Subject, content, and member group are required",
+//       };
+//     }
+//
+//     const contentHtml = simpleMarkdownToHtml(emailContent);
+//     const currentYear = new Date().getFullYear();
+//
+//     let membersQuery;
+//
+//     switch (memberGroup) {
+//       case "all":
+//         membersQuery = await sql`
+//           SELECT
+//             id,
+//             first_name,
+//             email,
+//             last_donation_date
+//           FROM members
+//           WHERE
+//             member_type != 'pending'
+//             AND email_list = true
+//         `;
+//         break;
+//       case "volunteers":
+//         membersQuery = await sql`
+//           SELECT
+//             id,
+//             first_name,
+//             email,
+//             last_donation_date
+//           FROM members
+//           WHERE
+//             member_type = 'volunteer'
+//             AND email_list = true
+//         `;
+//         break;
+//       default:
+//         return {
+//           success: false,
+//           message: "Invalid member group selected",
+//         };
+//     }
+//
+//     if (membersQuery.rows.length === 0) {
+//       return {
+//         success: false,
+//         message: `No members found in the "${memberGroup}" group who have opted in to emails`,
+//       };
+//     }
+//
+//     const recipients = membersQuery.rows.map((member) => ({
+//       id: member.id.toString(),
+//       first_name: member.first_name,
+//       email: member.email,
+//       needsDonation:
+//         !member.last_donation_date ||
+//         new Date(member.last_donation_date).getFullYear() < currentYear,
+//     }));
+//
+//     const emailResult = await sendBatchEmails({
+//       recipients,
+//       templateName: "emailBlast",
+//       commonTemplateData: {
+//         content: contentHtml,
+//         subject,
+//         currentYear,
+//       },
+//       subject,
+//       replyTo: process.env.REPLY_TO_EMAIL,
+//     });
+//
+//     if (!emailResult.success) {
+//       console.error("Error sending email blast:", emailResult.error);
+//       return {
+//         success: false,
+//         message: "Failed to send email blast. Please try again.",
+//       };
+//     }
+//
+//     await sql`
+//       INSERT INTO email_blasts (
+//         sender_id,
+//         subject,
+//         message,
+//         sent_at,
+//         member_group,
+//         recipient_count,
+//         template
+//       )
+//       VALUES (
+//         ${user.id},
+//         ${subject},
+//         ${emailContent},
+//         ${new Date()},
+//         ${memberGroup},
+//         ${emailResult.stats.successCount},
+//         ${template}
+//       )
+//     `;
+//
+//     return {
+//       success: true,
+//       message: `Email blast sent successfully to ${emailResult.stats.successCount} members in the "${memberGroup}" group!`,
+//       recipientCount: emailResult.stats.successCount,
+//     };
+//   } catch (error) {
+//     console.error("Error sending email blast:", error);
+//     return {
+//       success: false,
+//       message: "Failed to send email blast. Please try again.",
+//     };
+//   }
+// }
+
 export async function sendEmailBlast(formData) {
   try {
     const session = await getSession();
@@ -4338,14 +4586,19 @@ export async function sendEmailBlast(formData) {
       };
     }
 
-    // Convert markdown to HTML using our simple formatter
-    const contentHtml = simpleMarkdownToHtml(emailContent);
+    const gmailAppPassword =
+      process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD;
+    if (!gmailAppPassword) {
+      return {
+        success: false,
+        message:
+          "Gmail app password is not configured. Set EMAIL_PASS or GMAIL_APP_PASSWORD.",
+      };
+    }
 
-    // Get the current year for donation check
+    const contentHtml = simpleMarkdownToHtml(emailContent);
     const currentYear = new Date().getFullYear();
 
-    // Get emails based on the selected member group
-    // Only include members who have opted in to emails (email_list = true)
     let membersQuery;
 
     switch (memberGroup) {
@@ -4389,38 +4642,121 @@ export async function sendEmailBlast(formData) {
       };
     }
 
-    // Format the recipients array for batch sending
-    const recipients = membersQuery.rows.map((member) => ({
-      id: member.id.toString(),
-      first_name: member.first_name,
-      email: member.email,
-      needsDonation:
-        !member.last_donation_date ||
-        new Date(member.last_donation_date).getFullYear() < currentYear,
-    }));
+    const donationMessage = `
+      <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #ff6600;">
+        <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
+        <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
+        <p><a href="https://sandsharks.ca/donate" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Donate Now</a></p>
+      </div>
+    `;
 
-    // Send batch emails using our new system
-    const emailResult = await sendBatchEmails({
-      recipients,
-      templateName: "emailBlast",
-      commonTemplateData: {
-        content: contentHtml,
-        subject,
-        currentYear,
+    const shuffledMembers = shuffleArray(membersQuery.rows);
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "sandsharks.org@gmail.com",
+        pass: gmailAppPassword,
       },
-      subject,
-      replyTo: process.env.REPLY_TO_EMAIL,
     });
 
-    if (!emailResult.success) {
-      console.error("Error sending email blast:", emailResult.error);
+    const batchSize = 10;
+    const delayBetweenEmails = 2000;
+    const delayBetweenBatches = 90000;
+    const maxRetries = 3;
+    let successCount = 0;
+    let failureCount = 0;
+
+    const sendWithRetry = async (mailOptions, recipientEmail) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          await transporter.sendMail(mailOptions);
+          return true;
+        } catch (error) {
+          const responseCode = Number(error?.responseCode || 0);
+          const isRetryable =
+            responseCode === 421 ||
+            responseCode === 450 ||
+            responseCode === 451 ||
+            responseCode === 452;
+
+          if (!isRetryable || attempt === maxRetries) {
+            console.error(`Failed to send email to ${recipientEmail}:`, error);
+            return false;
+          }
+
+          const backoffMs = 15000 * 2 ** (attempt - 1);
+          console.warn(
+            `[email-blast] Temporary error (${responseCode}) for ${recipientEmail}. Retrying in ${
+              backoffMs / 1000
+            }s (attempt ${attempt}/${maxRetries})...`,
+          );
+          await delay(backoffMs);
+        }
+      }
+
+      return false;
+    };
+
+    for (let i = 0; i < shuffledMembers.length; i += batchSize) {
+      const batch = shuffledMembers.slice(i, i + batchSize);
+
+      console.log(
+        `[email-blast] Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(
+          shuffledMembers.length / batchSize,
+        )} (${batch.length} emails)`,
+      );
+
+      for (let j = 0; j < batch.length; j++) {
+        const member = batch[j];
+        const needsDonationMessage =
+          !member.last_donation_date ||
+          new Date(member.last_donation_date).getFullYear() < currentYear;
+        const memberContentHtml = needsDonationMessage
+          ? contentHtml + donationMessage
+          : contentHtml;
+        const templateFunction = emailTemplates[template] || emailTemplates.default;
+        const htmlMessage = templateFunction(memberContentHtml, subject, member.id);
+
+        const sent = await sendWithRetry(
+          {
+            from: '"Sandsharks" <sandsharks.org@gmail.com>',
+            to: member.email,
+            replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
+            subject,
+            html: htmlMessage,
+            text: `${emailContent}\n\nTo unsubscribe, use the unsubscribe link in this email.`,
+          },
+          member.email,
+        );
+
+        if (sent) {
+          successCount++;
+        } else {
+          failureCount++;
+        }
+
+        if (j + 1 < batch.length) {
+          await delay(delayBetweenEmails);
+        }
+      }
+
+      if (i + batchSize < shuffledMembers.length) {
+        console.log(
+          `[email-blast] Waiting ${
+            delayBetweenBatches / 1000
+          } seconds before next batch...`,
+        );
+        await delay(delayBetweenBatches);
+      }
+    }
+
+    if (successCount === 0) {
       return {
         success: false,
-        message: "Failed to send email blast. Please try again.",
+        message: "Failed to send any emails. Please try again.",
       };
     }
 
-    // Record the email blast in the database
     await sql`
       INSERT INTO email_blasts (
         sender_id,
@@ -4437,15 +4773,15 @@ export async function sendEmailBlast(formData) {
         ${emailContent},
         ${new Date()},
         ${memberGroup},
-        ${emailResult.stats.successCount},
+        ${successCount},
         ${template}
       )
     `;
 
     return {
       success: true,
-      message: `Email blast sent successfully to ${emailResult.stats.successCount} members in the "${memberGroup}" group!`,
-      recipientCount: emailResult.stats.successCount,
+      message: `Email blast sent successfully to ${successCount} members in the "${memberGroup}" group (${failureCount} failed).`,
+      recipientCount: successCount,
     };
   } catch (error) {
     console.error("Error sending email blast:", error);
@@ -5445,7 +5781,7 @@ export async function deleteAccount(formData) {
       `;
     } catch (error) {
       console.log(
-        "Note: play_day_volunteers table might not exist or no records to delete"
+        "Note: play_day_volunteers table might not exist or no records to delete",
       );
     }
 
@@ -5456,7 +5792,7 @@ export async function deleteAccount(formData) {
       `;
     } catch (error) {
       console.log(
-        "Note: clinic_participants table might not exist or no records to delete"
+        "Note: clinic_participants table might not exist or no records to delete",
       );
     }
 
@@ -5490,7 +5826,7 @@ export async function deleteAccount(formData) {
     } catch (error) {
       // If NOT NULL constraint, delete the records instead
       console.log(
-        "Note: created_by might have NOT NULL constraint, trying to delete records"
+        "Note: created_by might have NOT NULL constraint, trying to delete records",
       );
       await sql`
         DELETE FROM play_days
@@ -5507,7 +5843,7 @@ export async function deleteAccount(formData) {
       `;
     } catch (error) {
       console.log(
-        "Note: Error updating cancelled_by, it might not exist or have constraints"
+        "Note: Error updating cancelled_by, it might not exist or have constraints",
       );
     }
 
@@ -5521,7 +5857,7 @@ export async function deleteAccount(formData) {
     } catch (error) {
       // If NOT NULL constraint, delete the records instead
       console.log(
-        "Note: sender_id might have NOT NULL constraint, trying to delete records"
+        "Note: sender_id might have NOT NULL constraint, trying to delete records",
       );
       try {
         await sql`
@@ -5530,7 +5866,7 @@ export async function deleteAccount(formData) {
         `;
       } catch (innerError) {
         console.log(
-          "Note: Error deleting from email_blasts, table might not exist"
+          "Note: Error deleting from email_blasts, table might not exist",
         );
       }
     }
@@ -5560,7 +5896,7 @@ export async function deleteAccount(formData) {
       if (!emailResult.success) {
         console.error(
           "Error sending account deletion email:",
-          emailResult.error
+          emailResult.error,
         );
       } else {
         console.log(`Account deletion confirmation email sent to ${userEmail}`);
@@ -5568,7 +5904,7 @@ export async function deleteAccount(formData) {
     } catch (emailError) {
       console.error(
         "Error sending account deletion confirmation email:",
-        emailError
+        emailError,
       );
       // Continue even if email fails since the account has been deleted
     }
@@ -5628,7 +5964,7 @@ export async function signUpForVolunteering() {
     if (!emailResult.success) {
       console.error(
         "Error sending volunteer sign-up email:",
-        emailResult.error
+        emailResult.error,
       );
       return {
         success: false,
@@ -6001,7 +6337,7 @@ export const approveVolunteerRequest = async (formData) => {
         if (!emailResult.success) {
           console.error(
             "Error sending volunteer approval email:",
-            emailResult.error
+            emailResult.error,
           );
         } else {
           console.log(`Volunteer approval email sent to ${member.email}`);
@@ -6472,7 +6808,7 @@ export async function approveSponsorRequest(formData) {
         if (!emailResult.success) {
           console.error(
             "Error sending sponsorship approval email:",
-            emailResult.error
+            emailResult.error,
           );
         } else {
           console.log(`Sponsorship approval email sent to ${member.email}`);
@@ -6600,7 +6936,7 @@ export async function rejectSponsorRequest(formData) {
         if (!emailResult.success) {
           console.error(
             "Error sending sponsorship rejection email:",
-            emailResult.error
+            emailResult.error,
           );
         } else {
           console.log(`Sponsorship rejection email sent to ${member.email}`);
@@ -6992,7 +7328,7 @@ export async function uploadPhotos(formData) {
   try {
     const files = formData.getAll("photos");
     const year = Number.parseInt(
-      formData.get("year") || new Date().getFullYear()
+      formData.get("year") || new Date().getFullYear(),
     );
 
     // Get tagged members for each photo (now includes both member IDs and custom names)
@@ -7343,7 +7679,7 @@ export async function getPhotoTags(photoId) {
 export async function createGuestPaymentIntent(amount, guestInfo = {}) {
   console.log(
     "Server action: createGuestPaymentIntent called with amount:",
-    amount
+    amount,
   );
   console.log("Guest info:", guestInfo);
 
@@ -7381,7 +7717,7 @@ export async function createGuestPaymentIntent(amount, guestInfo = {}) {
   } catch (error) {
     console.error("Error creating payment intent:", error);
     throw new Error(
-      error.message || "An error occurred while processing your donation"
+      error.message || "An error occurred while processing your donation",
     );
   }
 }
@@ -7573,7 +7909,7 @@ export async function registerGuestOnly(prevState, formData) {
 export async function recordGuestDonation(paymentIntentId) {
   console.log(
     "Server action: recordGuestDonation called with paymentIntentId:",
-    paymentIntentId
+    paymentIntentId,
   );
 
   try {
@@ -7614,7 +7950,7 @@ export async function recordGuestDonation(paymentIntentId) {
 
     console.log(
       "Guest donation recorded successfully for payment intent:",
-      paymentIntentId
+      paymentIntentId,
     );
     revalidatePath("/guest-donation");
     return { success: true, message: "Donation recorded successfully" };

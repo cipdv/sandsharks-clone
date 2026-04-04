@@ -238,6 +238,7 @@ export default function MemberProfile({ member }) {
                             src={sponsor.logoUrl || "/placeholder.svg"}
                             alt={sponsor.name}
                             fill
+                            unoptimized
                             className="object-cover"
                           />
                         </div>

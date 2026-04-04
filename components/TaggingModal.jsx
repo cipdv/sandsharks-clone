@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   addTagToPhoto,
   removeTagFromPhoto,
@@ -130,9 +131,13 @@ export default function TaggingModal({
 
           {/* Photo preview */}
           <div className="mb-4">
-            <img
+            <Image
               src={photo.url || "/placeholder.svg"}
               alt={photo.filename || "Photo"}
+              width={640}
+              height={240}
+              sizes="(max-width: 768px) 100vw, 640px"
+              quality={60}
               className="w-full h-32 object-cover rounded-lg"
             />
           </div>
@@ -189,11 +194,15 @@ export default function TaggingModal({
                     onClick={() => addMemberTag(member)}
                   >
                     {member.profile_pic_url && (
-                      <img
+                      <Image
                         src={member.profile_pic_url || "/placeholder.svg"}
                         alt={`${member.first_name || ""} ${
                           member.last_name || ""
                         }`}
+                        width={24}
+                        height={24}
+                        sizes="24px"
+                        quality={60}
                         className="w-6 h-6 rounded-full object-cover"
                       />
                     )}
@@ -221,11 +230,15 @@ export default function TaggingModal({
                     >
                       <div className="flex items-center space-x-2">
                         {tag.member_id && tag.profile_pic_url && (
-                          <img
+                          <Image
                             src={tag.profile_pic_url || "/placeholder.svg"}
                             alt={`${tag.first_name || ""} ${
                               tag.last_name || ""
                             }`}
+                            width={24}
+                            height={24}
+                            sizes="24px"
+                            quality={60}
                             className="w-6 h-6 rounded-full object-cover"
                           />
                         )}

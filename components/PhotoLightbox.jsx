@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Image from "next/image";
 
 export default function PhotoLightbox({
   photo,
@@ -133,10 +134,14 @@ export default function PhotoLightbox({
       >
         {/* Image */}
         <div className="bg-black flex items-center justify-center p-4">
-          <img
+          <Image
             src={photo.url || "/placeholder.svg"}
             alt={photo.filename || "Photo"}
-            className="max-h-[85vh] max-w-full object-contain"
+            width={1800}
+            height={1350}
+            sizes="100vw"
+            quality={75}
+            className="max-h-[85vh] max-w-full object-contain w-auto h-auto"
           />
         </div>
 

@@ -3,6 +3,7 @@
 import { login } from "@/app/lib/auth";
 import { useActionState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { ActionButton } from "./ActionButton";
 
@@ -64,9 +65,21 @@ const SignInForm = ({ redirectTo, emailTarget }) => {
           className="ml-2"
         >
           {showPassword ? (
-            <img src="/images/icons8-hide-16.png" alt="Hide password" />
+            <Image
+              src="/images/icons8-hide-16.png"
+              alt="Hide password"
+              width={16}
+              height={16}
+              unoptimized
+            />
           ) : (
-            <img src="/images/icons8-eye-16.png" alt="Show password" />
+            <Image
+              src="/images/icons8-eye-16.png"
+              alt="Show password"
+              width={16}
+              height={16}
+              unoptimized
+            />
           )}
         </button>
       </div>

@@ -50,6 +50,7 @@ export default function VolunteerSection({ user }) {
             src="/images/sandsharks-rainbow-icon.svg"
             alt="Sandsharks volunteers on the beach"
             fill
+            unoptimized
             className="object-cover"
           />
         </div>

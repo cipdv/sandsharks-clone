@@ -283,6 +283,14 @@ const MembersSection = ({ members, user }) => {
           {filteredMembers.map((member, index) => {
             const memberId = member.id || member._id
             const uniqueKey = getMemberUniqueKey(member, index)
+            const profileImageSrc =
+              member.profilePicStatus === "approved" && member.profilePicUrl
+                ? member.profilePicUrl
+                : member.profilePic?.status === "approved" && member.profilePic?.url
+                  ? member.profilePic.url
+                  : "/images/sandsharks-rainbow-icon.svg"
+            const useUnoptimizedFallback =
+              profileImageSrc.startsWith("/images/") && profileImageSrc.endsWith(".svg")
 
             return (
               <div
@@ -304,15 +312,10 @@ const MembersSection = ({ members, user }) => {
                   }}
                 >
                   <Image
-                    src={
-                      member.profilePicStatus === "approved" && member.profilePicUrl
-                        ? member.profilePicUrl
-                        : member.profilePic?.status === "approved" && member.profilePic?.url
-                          ? member.profilePic.url
-                          : "/images/sandsharks-rainbow-icon.svg"
-                    }
+                    src={profileImageSrc}
                     alt={`${member.firstName}'s profile photo`}
                     fill={true}
+                    unoptimized={useUnoptimizedFallback}
                     className="object-cover"
                     sizes="(max-width: 640px) 64px, (max-width: 768px) 80px, 96px"
                   />

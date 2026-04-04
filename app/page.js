@@ -12,7 +12,7 @@ export default async function Page() {
         </h1>
         <div className="w-full mt-4 relative aspect-[16/9]">
           <Image
-            src="/images/2024-09-08-sandsharks-group-photo.png"
+            src="/images/2025-sandsharks-group-photo.jpg"
             fill
             sizes="(max-width: 768px) 100vw, 1200px"
             className="object-cover"

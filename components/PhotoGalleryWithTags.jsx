@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { getPhotosByYear, getPhotoTags, deletePhoto } from "@/app/_actions";
 import TaggingModal from "./TaggingModal";
 
@@ -212,11 +213,13 @@ export default function PhotoGalleryWithTags({ years }) {
               onClick={() => openLightbox(photo)}
             >
               <div className="aspect-square relative group">
-                <img
+                <Image
                   src={photo.url || "/placeholder.svg"}
                   alt={photo.filename || "Photo"}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                  quality={60}
+                  className="object-cover"
                 />
                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity duration-300 flex items-center justify-center">
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -286,10 +289,14 @@ export default function PhotoGalleryWithTags({ years }) {
           <div className="max-w-6xl max-h-full flex flex-col md:flex-row bg-white rounded-lg overflow-hidden">
             {/* Image */}
             <div className="flex-1 flex items-center justify-center bg-black">
-              <img
+              <Image
                 src={lightboxPhoto.url || "/placeholder.svg"}
                 alt={lightboxPhoto.filename || "Photo"}
-                className="max-w-full max-h-full object-contain"
+                width={1800}
+                height={1350}
+                sizes="(max-width: 768px) 100vw, 70vw"
+                quality={75}
+                className="max-w-full max-h-full object-contain w-auto h-auto"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -352,11 +359,15 @@ export default function PhotoGalleryWithTags({ years }) {
                           className="flex items-center space-x-2"
                         >
                           {tag.member_id && tag.profile_pic_url && (
-                            <img
+                            <Image
                               src={tag.profile_pic_url || "/placeholder.svg"}
                               alt={`${tag.first_name || ""} ${
                                 tag.last_name || ""
                               }`}
+                              width={24}
+                              height={24}
+                              sizes="24px"
+                              quality={60}
                               className="w-6 h-6 rounded-full object-cover"
                             />
                           )}

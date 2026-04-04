@@ -338,6 +338,10 @@ const AttendeeItem = ({ reply, showFirstNameOnly = false }) => {
     );
   };
 
+  const profilePicUrl = getProfilePicUrl() || "/placeholder.svg";
+  const useUnoptimizedFallback =
+    profilePicUrl.startsWith("/images/") && profilePicUrl.endsWith(".svg");
+
   return (
     <div
       ref={itemRef}
@@ -356,9 +360,10 @@ const AttendeeItem = ({ reply, showFirstNameOnly = false }) => {
       >
         <div style={{ paddingTop: "100%" }}>
           <Image
-            src={getProfilePicUrl() || "/placeholder.svg"}
+            src={profilePicUrl}
             alt={fullName}
             fill={true}
+            unoptimized={useUnoptimizedFallback}
             className="absolute top-0 left-0 object-cover object-center"
           />
         </div>
@@ -422,9 +427,10 @@ const AttendeeItem = ({ reply, showFirstNameOnly = false }) => {
               <div className="flex items-center gap-4">
                 <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-blue-200 flex-shrink-0">
                   <Image
-                    src={getProfilePicUrl() || "/placeholder.svg"}
+                    src={profilePicUrl}
                     alt={`${fullName}'s profile photo`}
                     fill={true}
+                    unoptimized={useUnoptimizedFallback}
                     className="object-cover"
                     sizes="96px"
                   />

@@ -2,6 +2,7 @@
 import { renderWeeklyPlayDayEmail } from "@/components/emails/WeeklyPlayDayEmail"
 import { Resend } from "resend"
 import { sql } from "@vercel/postgres"
+import { createHash } from "node:crypto"
 import { markNoteAsSent, getNextPendingNote } from "@/app/_actions"
 
 // Add a simple debounce mechanism to prevent duplicate sends
@@ -182,13 +183,33 @@ export async function sendWeeklyPlayDayEmails() {
       playDays.length > 0 ? "Upcoming Play Days This Weekend" : "Sandsharks Weekly Update - No Play Days This Weekend"
 
     // Send a single email with all recipients in BCC
-    const { data, error } = await resend.emails.send({
-      from: "Sandsharks <sandsharks@sandsharks.ca>",
-      to: "sandsharks.org@gmail.com", 
-      bcc: bccEmails, 
-      subject: subject,
-      html: emailHtml,
-    })
+    const idempotencyHash = createHash("sha256")
+      .update(
+        JSON.stringify({
+          fridayStr,
+          sundayStr,
+          subject,
+          noteId: noteId || null,
+          recipients: [...bccEmails].sort(),
+        }),
+      )
+      .digest("hex")
+      .slice(0, 20)
+
+    const idempotencyKey = `weekly-playday/${fridayStr}/${idempotencyHash}`
+
+    const { data, error } = await resend.emails.send(
+      {
+        from: "Sandsharks <sandsharks@sandsharks.ca>",
+        to: "sandsharks.org@gmail.com",
+        bcc: bccEmails,
+        subject: subject,
+        html: emailHtml,
+      },
+      {
+        idempotencyKey,
+      },
+    )
 
     if (error) {
       console.error("Error sending weekly play day email:", error)

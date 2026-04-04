@@ -1,5 +1,56 @@
 import { Resend } from "resend";
+import { createHash } from "node:crypto";
 import * as EmailTemplates from "./email-templates";
+
+const IDEMPOTENCY_MAX_LENGTH = 256;
+
+function stableStringify(value) {
+  if (value === null || value === undefined) {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (typeof value === "object") {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${key}:${stableStringify(value[key])}`)
+      .join(",")}}`;
+  }
+
+  return String(value);
+}
+
+function buildIdempotencyKey(prefix, payload) {
+  const payloadHash = createHash("sha256")
+    .update(stableStringify(payload))
+    .digest("hex")
+    .slice(0, 20);
+
+  const basePrefix = String(prefix || "email")
+    .toLowerCase()
+    .replace(/[^a-z0-9/-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  const key = `${basePrefix}/${payloadHash}`;
+  return key.slice(0, IDEMPOTENCY_MAX_LENGTH);
+}
+
+function extractResendErrorCode(error) {
+  if (!error) return null;
+  if (typeof error === "string") return error;
+  return (
+    error?.name ||
+    error?.error ||
+    error?.code ||
+    error?.type ||
+    error?.message ||
+    null
+  );
+}
 
 /**
  * Centralized email sending function that uses the Resend API
@@ -11,6 +62,7 @@ export async function sendEmail({
   templateName,
   templateData,
   replyTo = "sandsharks.org@gmail.com",
+  idempotencyKey,
 }) {
   try {
     // Initialize Resend with API key
@@ -72,21 +124,71 @@ export async function sendEmail({
     }
 
     // Send the email using Resend
-    const { data, error } = await resend.emails.send({
-      from: "Sandsharks <sandsharks@sandsharks.ca>",
-      to,
-      reply_to: replyTo,
-      subject: subject || templateData.subject,
-      html: htmlContent,
-    });
+    const resolvedSubject = subject || templateData.subject;
+    const resolvedIdempotencyKey =
+      idempotencyKey ||
+      buildIdempotencyKey(`email/${templateName}`, {
+        to,
+        subject: resolvedSubject,
+        templateData,
+      });
+
+    const { data, error } = await resend.emails.send(
+      {
+        from: "Sandsharks <sandsharks@sandsharks.ca>",
+        to,
+        reply_to: replyTo,
+        subject: resolvedSubject,
+        html: htmlContent,
+      },
+      {
+        idempotencyKey: resolvedIdempotencyKey,
+      },
+    );
 
     if (error) {
+      const errorCode = extractResendErrorCode(error);
+      if (errorCode === "concurrent_idempotent_requests") {
+        return {
+          success: false,
+          retryable: true,
+          error,
+        };
+      }
+      if (errorCode === "invalid_idempotent_request") {
+        return {
+          success: false,
+          retryable: false,
+          error,
+        };
+      }
+
       console.error(`Error sending ${templateName} email:`, error);
       return { success: false, error };
     }
 
-    return { success: true, messageId: data?.id };
+    return {
+      success: true,
+      messageId: data?.id,
+      idempotencyKey: resolvedIdempotencyKey,
+    };
   } catch (error) {
+    const errorCode = extractResendErrorCode(error);
+    if (errorCode === "concurrent_idempotent_requests") {
+      return {
+        success: false,
+        retryable: true,
+        error: error.message,
+      };
+    }
+    if (errorCode === "invalid_idempotent_request") {
+      return {
+        success: false,
+        retryable: false,
+        error: error.message,
+      };
+    }
+
     console.error("Error in sendEmail:", error);
     return { success: false, error: error.message };
   }
@@ -111,6 +213,7 @@ export async function sendBccEmail({
   subject,
   htmlContent,
   replyTo = "sandsharks.org@gmail.com",
+  idempotencyKey,
 }) {
   try {
     // Initialize Resend with API key
@@ -137,14 +240,28 @@ export async function sendBccEmail({
 
     // If we're in development or have fewer than 49 recipients, send as a single email
     if (process.env.NODE_ENV === "development" || allBccEmails.length <= 49) {
-      const { data, error } = await resend.emails.send({
-        from: "Sandsharks <sandsharks@sandsharks.ca>",
-        to: toEmail,
-        bcc: allBccEmails,
-        reply_to: replyTo,
-        subject: subject,
-        html: htmlContent,
-      });
+      const resolvedIdempotencyKey =
+        idempotencyKey ||
+        buildIdempotencyKey("email/bcc", {
+          to: toEmail,
+          bcc: [...allBccEmails].sort(),
+          subject,
+          htmlContent,
+        });
+
+      const { data, error } = await resend.emails.send(
+        {
+          from: "Sandsharks <sandsharks@sandsharks.ca>",
+          to: toEmail,
+          bcc: allBccEmails,
+          reply_to: replyTo,
+          subject: subject,
+          html: htmlContent,
+        },
+        {
+          idempotencyKey: resolvedIdempotencyKey,
+        },
+      );
 
       if (error) {
         console.error(`Error sending BCC email:`, error);
@@ -154,6 +271,7 @@ export async function sendBccEmail({
       return {
         success: true,
         messageId: data?.id,
+        idempotencyKey: resolvedIdempotencyKey,
         stats: {
           totalRecipients: allBccEmails.length,
           successCount: allBccEmails.length,
@@ -182,14 +300,29 @@ export async function sendBccEmail({
       );
 
       try {
-        const { data, error } = await resend.emails.send({
-          from: "Sandsharks <sandsharks@sandsharks.ca>",
-          to: toEmail,
-          bcc: batch,
-          reply_to: replyTo,
-          subject: subject,
-          html: htmlContent,
-        });
+        const batchIdempotencyKey =
+          idempotencyKey ||
+          buildIdempotencyKey("email/bcc-batch", {
+            batchNumber: i + 1,
+            to: toEmail,
+            bcc: [...batch].sort(),
+            subject,
+            htmlContent,
+          });
+
+        const { data, error } = await resend.emails.send(
+          {
+            from: "Sandsharks <sandsharks@sandsharks.ca>",
+            to: toEmail,
+            bcc: batch,
+            reply_to: replyTo,
+            subject: subject,
+            html: htmlContent,
+          },
+          {
+            idempotencyKey: batchIdempotencyKey,
+          },
+        );
 
         if (error) {
           console.error(`Error sending BCC batch ${i + 1}:`, error);
@@ -206,6 +339,7 @@ export async function sendBccEmail({
             batch: i + 1,
             success: true,
             messageId: data?.id,
+            idempotencyKey: batchIdempotencyKey,
             recipients: batch.length,
           });
         }

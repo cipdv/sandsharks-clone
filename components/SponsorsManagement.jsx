@@ -256,6 +256,7 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
                           src={request.logo_url || "/placeholder.svg"}
                           alt={`${request.name} logo`}
                           fill
+                          unoptimized
                           className="object-contain"
                         />
                       </div>

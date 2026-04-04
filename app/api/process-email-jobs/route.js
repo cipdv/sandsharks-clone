@@ -1,5 +1,6 @@
 import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 
 export async function POST(request) {
   try {
@@ -232,14 +233,33 @@ async function processEmailJob(job) {
 </html>
 `;
 
-        await resend.emails.send({
-          from: "sandsharks@sandsharks.ca",
-          to: member.email,
+        const idempotencyHash = createHash("sha256")
+          .update(
+            JSON.stringify({
+              jobId: job.id,
+              playDayId: job.play_day_id,
+              memberId: member.id,
+              recipient: member.email,
+              subject: "Oops, here's the real RSVP link for August 4!",
+            }),
+          )
+          .digest("hex")
+          .slice(0, 20);
 
-          subject: `Oops, here's the real RSVP link for August 4!`,
-          html: emailHtml,
-          replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
-        });
+        const idempotencyKey = `email-job/${job.id}/member/${member.id}/${idempotencyHash}`;
+
+        await resend.emails.send(
+          {
+            from: "sandsharks@sandsharks.ca",
+            to: member.email,
+            subject: `Oops, here's the real RSVP link for August 4!`,
+            html: emailHtml,
+            replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
+          },
+          {
+            idempotencyKey,
+          },
+        );
 
         successCount++;
         console.log(

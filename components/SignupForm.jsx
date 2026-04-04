@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { registerNewMember } from "@/app/_actions";
 import { useActionState } from "react";
+import Image from "next/image";
 import { ActionButton } from "./ActionButton";
 import { ImageUploader } from "./ImageUploader";
 
@@ -204,9 +205,21 @@ const SignupForm = () => {
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
             {showPassword ? (
-              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+              <Image
+                src="/images/icons8-hide-16.png"
+                alt="Hide password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             ) : (
-              <img src="/images/icons8-eye-16.png" alt="Show password" />
+              <Image
+                src="/images/icons8-eye-16.png"
+                alt="Show password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             )}
           </button>
         </div>
@@ -242,9 +255,21 @@ const SignupForm = () => {
             }
           >
             {showConfirmPassword ? (
-              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+              <Image
+                src="/images/icons8-hide-16.png"
+                alt="Hide password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             ) : (
-              <img src="/images/icons8-eye-16.png" alt="Show password" />
+              <Image
+                src="/images/icons8-eye-16.png"
+                alt="Show password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             )}
           </button>
         </div>

@@ -194,6 +194,7 @@ const SponsorForm = ({ members = [], onSuccess }) => {
                 src={previewUrl || "/placeholder.svg"}
                 alt="Logo preview"
                 fill
+                unoptimized
                 className="object-contain"
               />
             </div>

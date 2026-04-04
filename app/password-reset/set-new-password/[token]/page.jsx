@@ -3,6 +3,7 @@ import { useState } from "react"
 import { useActionState } from "react"
 import { setNewPassword } from "@/app/_actions"
 import Link from "next/link"
+import Image from "next/image"
 import { use } from "react"
 import { useRouter } from "next/navigation"
 import { ActionButton } from "@/components/ActionButton"
@@ -54,9 +55,21 @@ const setNewPasswordPage = ({ params }) => {
           />
           <button type="button" onClick={togglePasswordVisibility} className="ml-2">
             {showPassword ? (
-              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+              <Image
+                src="/images/icons8-hide-16.png"
+                alt="Hide password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             ) : (
-              <img src="/images/icons8-eye-16.png" alt="Show password" />
+              <Image
+                src="/images/icons8-eye-16.png"
+                alt="Show password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             )}
           </button>
         </div>
@@ -72,9 +85,21 @@ const setNewPasswordPage = ({ params }) => {
           />
           <button type="button" onClick={toggleConfirmPasswordVisibility} className="ml-2">
             {showConfirmPassword ? (
-              <img src="/images/icons8-hide-16.png" alt="Hide password" />
+              <Image
+                src="/images/icons8-hide-16.png"
+                alt="Hide password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             ) : (
-              <img src="/images/icons8-eye-16.png" alt="Show password" />
+              <Image
+                src="/images/icons8-eye-16.png"
+                alt="Show password"
+                width={16}
+                height={16}
+                unoptimized
+              />
             )}
           </button>
         </div>

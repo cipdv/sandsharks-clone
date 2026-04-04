@@ -84,34 +84,42 @@ const Posts = async ({ posts, user }) => {
                         }}
                       >
                         {post.replies.map((reply) => (
-                          <div
-                            key={reply._id}
-                            className="flex flex-col items-center group"
-                          >
-                            <div
-                              className="relative rounded-full overflow-hidden"
-                              style={{
-                                width: "40px",
-                                height: "40px",
-                                position: "relative",
-                              }}
-                            >
-                              <div style={{ paddingTop: "100%" }}>
-                                <Image
-                                  src={
-                                    reply?.pic ||
-                                    "/images/sandsharks-rainbow-icon.svg"
-                                  }
-                                  alt={reply?.name}
-                                  fill={true}
-                                  className="absolute top-0 left-0 object-cover object-center"
-                                />
+                          (() => {
+                            const replyImageSrc =
+                              reply?.pic || "/images/sandsharks-rainbow-icon.svg";
+                            const useUnoptimizedFallback =
+                              replyImageSrc.startsWith("/images/") &&
+                              replyImageSrc.endsWith(".svg");
+
+                            return (
+                              <div
+                                key={reply._id}
+                                className="flex flex-col items-center group"
+                              >
+                                <div
+                                  className="relative rounded-full overflow-hidden"
+                                  style={{
+                                    width: "40px",
+                                    height: "40px",
+                                    position: "relative",
+                                  }}
+                                >
+                                  <div style={{ paddingTop: "100%" }}>
+                                    <Image
+                                      src={replyImageSrc}
+                                      alt={reply?.name}
+                                      fill={true}
+                                      unoptimized={useUnoptimizedFallback}
+                                      className="absolute top-0 left-0 object-cover object-center"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-center mt-1 text-xs">
+                                  {reply?.firstName || reply?.name}
+                                </div>
                               </div>
-                            </div>
-                            <div className="text-center mt-1 text-xs">
-                              {reply?.firstName || reply?.name}
-                            </div>
-                          </div>
+                            );
+                          })()
                         ))}
                       </div>
                     </div>
@@ -163,36 +171,42 @@ const Posts = async ({ posts, user }) => {
                       <h1>Who's going:</h1>
                       <div className="flex flex-row flex-wrap">
                         {post?.beginnerClinic?.beginnerClinicReplies?.map(
-                          (reply) => (
-                            <div
-                              key={reply._id}
-                              className="flex flex-col items-start group mt-2 mr-2"
-                            >
+                          (reply) => {
+                            const replyImageSrc =
+                              reply?.pic || "/images/sandsharks-rainbow-icon.svg";
+                            const useUnoptimizedFallback =
+                              replyImageSrc.startsWith("/images/") &&
+                              replyImageSrc.endsWith(".svg");
+
+                            return (
                               <div
-                                className="relative rounded-full overflow-hidden"
-                                style={{
-                                  width: "40px",
-                                  height: "40px",
-                                  position: "relative",
-                                }}
+                                key={reply._id}
+                                className="flex flex-col items-start group mt-2 mr-2"
                               >
-                                <div style={{ paddingTop: "100%" }}>
-                                  <Image
-                                    src={
-                                      reply?.pic ||
-                                      "/images/sandsharks-rainbow-icon.svg"
-                                    }
-                                    alt={reply?.name}
-                                    fill={true}
-                                    className="absolute top-0 left-0 object-cover object-center"
-                                  />
+                                <div
+                                  className="relative rounded-full overflow-hidden"
+                                  style={{
+                                    width: "40px",
+                                    height: "40px",
+                                    position: "relative",
+                                  }}
+                                >
+                                  <div style={{ paddingTop: "100%" }}>
+                                    <Image
+                                      src={replyImageSrc}
+                                      alt={reply?.name}
+                                      fill={true}
+                                      unoptimized={useUnoptimizedFallback}
+                                      className="absolute top-0 left-0 object-cover object-center"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="text-center mt-1 text-xs">
+                                  {reply?.name}
                                 </div>
                               </div>
-                              <div className="text-center mt-1 text-xs">
-                                {reply?.name}
-                              </div>
-                            </div>
-                          )
+                            );
+                          }
                         )}
                       </div>
                     </div>

@@ -115,6 +115,9 @@ const MemberProfileModal = ({ member, position, isVisible, onClose, isMobile, un
     )
   }
 
+  const profilePicUrl = getProfilePicUrl() || "/placeholder.svg"
+  const useUnoptimizedFallback = profilePicUrl.startsWith("/images/") && profilePicUrl.endsWith(".svg")
+
   if (!isVisible) return null
 
   return (
@@ -171,9 +174,10 @@ const MemberProfileModal = ({ member, position, isVisible, onClose, isMobile, un
           <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="relative w-40 h-40 sm:w-48 sm:h-48 rounded-full overflow-hidden border-2 border-blue-200 flex-shrink-0">
               <Image
-                src={getProfilePicUrl() || "/placeholder.svg"}
+                src={profilePicUrl}
                 alt={`${member?.firstName}'s profile photo`}
                 fill={true}
+                unoptimized={useUnoptimizedFallback}
                 className="object-cover"
                 sizes="(max-width: 640px) 160px, 192px"
               />

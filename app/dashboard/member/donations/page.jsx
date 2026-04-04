@@ -95,6 +95,7 @@ function CheckoutForm({ amount, notes, onSuccess, onError }) {
               alt="Stripe"
               width={60}
               height={25}
+              unoptimized
             />
           </a>
         </div>
@@ -139,6 +140,7 @@ function CheckoutForm({ amount, notes, onSuccess, onError }) {
           alt="Visa"
           width={50}
           height={30}
+          unoptimized
           className="h-8 w-auto object-contain"
         />
         <Image
@@ -146,6 +148,7 @@ function CheckoutForm({ amount, notes, onSuccess, onError }) {
           alt="Mastercard"
           width={50}
           height={30}
+          unoptimized
           className="h-8 w-auto object-contain"
         />
         <Image
@@ -153,6 +156,7 @@ function CheckoutForm({ amount, notes, onSuccess, onError }) {
           alt="Interac"
           width={50}
           height={30}
+          unoptimized
           className="h-8 w-auto object-contain"
         />
       </div>
@@ -188,6 +192,7 @@ function CheckoutForm({ amount, notes, onSuccess, onError }) {
                 alt=""
                 width={20}
                 height={20}
+                unoptimized
                 className="object-contain"
               />
             </div>

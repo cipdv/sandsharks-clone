@@ -55,6 +55,7 @@ const Navbar = ({ currentUser }) => {
               alt="Toronto Sandsharks Logo"
               width={50}
               height={50}
+              unoptimized
               className="mr-1"
             />
             <div className="flex flex-col">

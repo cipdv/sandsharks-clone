@@ -46,6 +46,7 @@ export function ActionButton({
               alt=""
               width={16}
               height={16}
+              unoptimized
               className="object-contain"
             />
           </div>

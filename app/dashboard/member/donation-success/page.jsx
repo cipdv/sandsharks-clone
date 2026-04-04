@@ -51,6 +51,7 @@ function DonationSuccessContent() {
                 alt="Loading..."
                 width={40}
                 height={40}
+                unoptimized
                 className="object-contain"
               />
             </div>

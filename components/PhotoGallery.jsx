@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { getPhotosByYear } from "@/app/_actions";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
@@ -111,12 +112,14 @@ export default function PhotoGallery({ years, currentYear }) {
               className="relative group cursor-pointer rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-shadow duration-300"
               onClick={() => setLightboxPhoto(photo)}
             >
-              <div className="aspect-square">
-                <img
-                  src={photo.url || "/placeholder.svg?height=400&width=400"}
+              <div className="aspect-square relative">
+                <Image
+                  src={photo.url || "/placeholder.svg"}
                   alt={photo.filename || "Photo"}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
+                  fill
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                  quality={60}
+                  className="object-cover"
                 />
               </div>
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-opacity duration-300 flex items-center justify-center">
@@ -148,10 +151,14 @@ export default function PhotoGallery({ years, currentYear }) {
           onClick={() => setLightboxPhoto(null)}
         >
           <div className="relative max-w-4xl max-h-full">
-            <img
-              src={lightboxPhoto.url || "/placeholder.svg?height=800&width=800"}
+            <Image
+              src={lightboxPhoto.url || "/placeholder.svg"}
               alt={lightboxPhoto.filename || "Photo"}
-              className="max-w-full max-h-[90vh] object-contain"
+              width={1600}
+              height={1200}
+              sizes="100vw"
+              quality={75}
+              className="max-w-full max-h-[90vh] object-contain w-auto h-auto"
               onClick={(e) => e.stopPropagation()}
             />
             <button
