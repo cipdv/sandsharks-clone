@@ -152,7 +152,7 @@ const PlayDays = ({ playDays, user }) => {
 
           return (
             <div
-              className="rounded-md overflow-hidden shadow-sm"
+              className="overflow-hidden rounded-md border border-sandsharks-magenta/70 shadow-sm ring-1 ring-sandsharks-magenta/10"
               key={playDay.id}
             >
               {/* SECTION 1: Header with Date, Time, Volunteers, Court */}

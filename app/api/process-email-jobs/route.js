@@ -1,10 +1,14 @@
 import { sql } from "@vercel/postgres";
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import {
+  chunkForResendBatch,
+  isValidEmailAddress,
+  sendResendBatchWithRetry,
+} from "@/app/lib/email-sender";
 
-export async function POST(request) {
+export async function POST() {
   try {
-    // Get the oldest queued job
     const jobResult = await sql`
       SELECT * FROM email_jobs 
       WHERE status = 'queued' 
@@ -18,17 +22,14 @@ export async function POST(request) {
 
     const job = jobResult.rows[0];
 
-    // Update job status to processing
     await sql`
       UPDATE email_jobs 
       SET status = 'processing', started_at = ${new Date()}
       WHERE id = ${job.id}
     `;
 
-    // Process the emails
     const result = await processEmailJob(job);
 
-    // Update job status with results
     await sql`
       UPDATE email_jobs 
       SET 
@@ -43,7 +44,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       message: `Job ${job.id} processed`,
-      result: result,
+      result,
     });
   } catch (error) {
     console.error("Error processing email job:", error);
@@ -56,7 +57,6 @@ export async function POST(request) {
 
 async function processEmailJob(job) {
   try {
-    // Get play day details
     const playDayResult = await sql`
       SELECT 
         id, title, description, date, start_time, end_time, courts,
@@ -71,7 +71,6 @@ async function processEmailJob(job) {
 
     const playDay = playDayResult.rows[0];
 
-    // Get all members who have opted into emails
     const membersResult = await sql`
       SELECT id, first_name, last_name, email
       FROM members
@@ -84,7 +83,6 @@ async function processEmailJob(job) {
 
     const members = membersResult.rows;
 
-    // Generate RSVP tokens
     const tokenPromises = members.map(async (member) => {
       const existingTokenResult = await sql`
         SELECT token FROM rsvp_tokens
@@ -121,56 +119,32 @@ async function processEmailJob(job) {
     });
 
     const tokens = await Promise.all(tokenPromises);
-    const tokenMap = new Map(tokens.map((t) => [t.memberId, t.token]));
-
-    // Format date and time
-    const date = new Date(playDay.date);
-    const formattedDate = date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-
-    const formatTime = (timeString) => {
-      const [hours, minutes] = timeString.split(":");
-      const hour = Number.parseInt(hours);
-      const ampm = hour >= 12 ? "PM" : "AM";
-      const displayHour = hour % 12 || 12;
-      return `${displayHour}:${minutes} ${ampm}`;
-    };
-
-    const timeRange = `${formatTime(playDay.start_time)} - ${formatTime(
-      playDay.end_time
-    )}`;
-
-    // Send emails with rate limiting
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const RATE_LIMIT_DELAY = 700;
+    const tokenMap = new Map(tokens.map((token) => [token.memberId, token.token]));
 
     let successCount = 0;
     let failureCount = 0;
+    const invalidRecipients = [];
+    const preparedEmails = [];
 
     console.log(
       `Processing email job ${job.id}: sending ${members.length} emails...`
     );
 
-    for (let i = 0; i < members.length; i++) {
-      const member = members[i];
+    for (const member of members) {
+      const normalizedEmail = member.email?.trim().toLowerCase();
 
-      try {
-        const token = tokenMap.get(member.id);
-        const baseUrl =
-          process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      if (!isValidEmailAddress(normalizedEmail)) {
+        invalidRecipients.push(member.email || `member:${member.id}`);
+        continue;
+      }
 
-        const rsvpYesUrl = `${baseUrl}/api/rsvp/${token}?action=yes`;
-        const rsvpNoUrl = `${baseUrl}/api/rsvp/${token}?action=no`;
-        const dashboardUrl = `${baseUrl}/dashboard/member`;
+      const token = tokenMap.get(member.id);
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const rsvpYesUrl = `${baseUrl}/api/rsvp/${token}?action=yes`;
+      const dashboardUrl = `${baseUrl}/dashboard/member`;
 
-        const emailHtml = `
+      const emailHtml = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -180,113 +154,119 @@ async function processEmailJob(job) {
 </head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f5f5f5;">
   <div style="max-width: 600px; margin: 0 auto; background-color: white;">
-    <!-- Header -->
     <div style="background-color: #1e40af; color: white; padding: 30px 20px; text-align: center;">
       <h1 style="margin: 0; font-size: 28px; font-weight: bold;">Sandsharks Beach Volleyball</h1>
     </div>
 
-    <!-- Content -->
     <div style="padding: 30px 20px;">
       <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 24px;">Hi ${member.first_name}!</h2>
-      
+
       <div style="font-size: 16px; line-height: 1.6; color: #374151; margin: 0 0 30px 0;">
-      <p>Oops, that's embarassing, I made a typo in the button URL in the last email, here's the REAL "I'll be there" button :)</p>
-      <p>Click the button below if you want to come play on August 4!</p>
+        <p>Oops, that's embarrassing, I made a typo in the button URL in the last email. Here's the real "I'll be there" button.</p>
+        <p>Click the button below if you want to come play on August 4.</p>
 
-      
-
-      <!-- RSVP Buttons -->
-      <div style="text-align: center; margin: 30px 0;">
-        <div style="display: inline-block;">
-          <a href="${rsvpYesUrl}" 
-             style="display: inline-block; background-color: #22c55e; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; margin: 0 10px;">
-            🏐 I'll be there!
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${rsvpYesUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+            I'll be there!
           </a>
-          
-          
         </div>
-      </div>
 
-      <div style="text-align: center; margin: 20px 0;">
-        <p style="font-size: 14px; color: #6b7280; margin: 0 0 10px 0;">
-          Testing out this new RSVP button in emails, so if it STILL doesn't work for you let me know.
-        </p>
-        
-      </div>
+        <div style="text-align: center; margin: 20px 0;">
+          <p style="font-size: 14px; color: #6b7280; margin: 0 0 10px 0;">
+            If the RSVP button still doesn't work for you, reply to this email and let me know.
+          </p>
+          <p style="font-size: 14px; color: #6b7280; margin: 10px 0 0 0;">
+            You can also manage your RSVP from your dashboard:
+            <a href="${dashboardUrl}" style="color: #1e40af;"> ${dashboardUrl}</a>
+          </p>
+        </div>
 
-      <div style="margin: 30px 0; padding: 20px; background-color: #f0f9ff; border-radius: 8px;">
-        <p style="margin: 0; font-size: 16px; color: #1e40af; text-align: center;">
-          Thanks everybody! See you on Friday 🙂<br>
-          <strong>-Cip</strong>
-        </p>
+        <div style="margin: 30px 0; padding: 20px; background-color: #f0f9ff; border-radius: 8px;">
+          <p style="margin: 0; font-size: 16px; color: #1e40af; text-align: center;">
+            Thanks everybody. See you on Friday.<br>
+            <strong>-Cip</strong>
+          </p>
+        </div>
       </div>
     </div>
 
-    <!-- Footer -->
     <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e5e7eb;">
-              <p>You're receiving this email because you're signed up as a member of <a href="https://www.sandsharks.ca">Toronto Sandsharks Beach Volleyball League</a>.</p>
-
-             <p>If you no longer wish to receive emails from Sandsharks: <a href="https://www.sandsharks.ca/unsubscribe">click here to unsubscribe</a>.</p>
+      <p>You're receiving this email because you're signed up as a member of <a href="https://www.sandsharks.ca">Toronto Sandsharks Beach Volleyball League</a>.</p>
+      <p>If you no longer wish to receive emails from Sandsharks: <a href="https://www.sandsharks.ca/unsubscribe">click here to unsubscribe</a>.</p>
     </div>
   </div>
 </body>
 </html>
 `;
 
-        const idempotencyHash = createHash("sha256")
-          .update(
-            JSON.stringify({
-              jobId: job.id,
-              playDayId: job.play_day_id,
-              memberId: member.id,
-              recipient: member.email,
-              subject: "Oops, here's the real RSVP link for August 4!",
-            }),
-          )
-          .digest("hex")
-          .slice(0, 20);
+      preparedEmails.push({
+        from: "Sandsharks <sandsharks@sandsharks.ca>",
+        to: [normalizedEmail],
+        subject: "Oops, here's the real RSVP link for August 4!",
+        html: emailHtml,
+        replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
+        tags: [
+          { name: "email_type", value: "playday_announcement" },
+          { name: "job_id", value: String(job.id) },
+          { name: "play_day_id", value: String(job.play_day_id) },
+        ],
+      });
+    }
 
-        const idempotencyKey = `email-job/${job.id}/member/${member.id}/${idempotencyHash}`;
+    if (preparedEmails.length === 0) {
+      return {
+        success: false,
+        message: "No valid member email addresses were found",
+        recipientCount: 0,
+        failureCount: invalidRecipients.length,
+      };
+    }
 
-        await resend.emails.send(
-          {
-            from: "sandsharks@sandsharks.ca",
-            to: member.email,
-            subject: `Oops, here's the real RSVP link for August 4!`,
-            html: emailHtml,
-            replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
-          },
-          {
-            idempotencyKey,
-          },
-        );
+    const resendBatches = chunkForResendBatch(preparedEmails);
 
-        successCount++;
-        console.log(
-          `✅ Email ${i + 1}/${members.length} sent to ${member.email}`
-        );
-      } catch (error) {
-        failureCount++;
+    for (const [batchIndex, batch] of resendBatches.entries()) {
+      const idempotencyHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            jobId: job.id,
+            playDayId: job.play_day_id,
+            subject: "Oops, here's the real RSVP link for August 4!",
+            recipients: batch.map((email) => email.to[0]).sort(),
+          })
+        )
+        .digest("hex")
+        .slice(0, 20);
+
+      const idempotencyKey = `email-job/${job.id}/batch/${batchIndex + 1}/${idempotencyHash}`;
+      const { error } = await sendResendBatchWithRetry(
+        batch,
+        { idempotencyKey },
+        { operationName: `email job ${job.id} batch ${batchIndex + 1}` }
+      );
+
+      if (error) {
+        failureCount += batch.length;
         console.error(
-          `❌ Email ${i + 1}/${members.length} failed for ${member.email}:`,
-          error.message
+          `[email-job] Batch ${batchIndex + 1} failed for job ${job.id}:`,
+          error
         );
-      }
-
-      if (i < members.length - 1) {
-        await delay(RATE_LIMIT_DELAY);
+      } else {
+        successCount += batch.length;
+        console.log(
+          `[email-job] Batch ${batchIndex + 1}/${resendBatches.length} sent (${batch.length} emails)`
+        );
       }
     }
 
     console.log(
-      `Job ${job.id} complete. Success: ${successCount}, Failed: ${failureCount}`
+      `Job ${job.id} complete. Success: ${successCount}, Failed: ${failureCount}, Invalid: ${invalidRecipients.length}`
     );
 
     return {
-      success: true,
-      message: `Emails sent successfully`,
+      success: successCount > 0,
+      message: "Emails sent successfully",
       recipientCount: successCount,
-      failureCount: failureCount,
+      failureCount: failureCount + invalidRecipients.length,
     };
   } catch (error) {
     console.error("Error in processEmailJob:", error);

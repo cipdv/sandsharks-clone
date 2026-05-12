@@ -16,6 +16,9 @@ const initialState = {
 const SignInForm = ({ redirectTo, emailTarget }) => {
   const [state, formAction] = useActionState(login, initialState);
   const [showPassword, setShowPassword] = useState(false);
+  const fieldClass =
+    "w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-base shadow-sm focus:border-sandsharks-magenta focus:outline-none focus:ring-2 focus:ring-sandsharks-lilac/60";
+  const labelClass = "mb-1 block text-sm font-medium text-sandsharks-ink";
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -40,65 +43,89 @@ const SignInForm = ({ redirectTo, emailTarget }) => {
   return (
     <form
       action={handleFormAction}
-      className="bg-blue-100 p-4 rounded-md mt-6 w-full lg:w-2/5 mx-auto"
+      className="mx-auto mt-6 w-full max-w-md rounded-lg border border-sandsharks-magenta/30 bg-blue-100 p-4 shadow-md sm:p-6 lg:p-8"
     >
-      <h1 className="text-2xl font-bold mb-4">Sign in</h1>
-      <input
-        type="email"
-        placeholder="Email"
-        name="email"
-        required
-        className="block mb-4 p-2"
-      />
+      <h1 className="mb-6 text-2xl font-bold">Sign in</h1>
 
-      <div className="flex items-center">
-        <input
-          type={showPassword ? "text" : "password"}
-          placeholder="Password"
-          name="password"
-          required
-          className="block mr-2 p-2"
-        />
-        <button
-          type="button"
-          onClick={togglePasswordVisibility}
-          className="ml-2"
-        >
-          {showPassword ? (
-            <Image
-              src="/images/icons8-hide-16.png"
-              alt="Hide password"
-              width={16}
-              height={16}
-              unoptimized
-            />
-          ) : (
-            <Image
-              src="/images/icons8-eye-16.png"
-              alt="Show password"
-              width={16}
-              height={16}
-              unoptimized
-            />
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="email" className={labelClass}>
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            placeholder="Email"
+            name="email"
+            required
+            className={fieldClass}
+          />
+          {state?.email && (
+            <p className="mt-2 text-sm font-bold text-red-500" role="alert">
+              {state?.email}
+            </p>
           )}
-        </button>
+        </div>
+
+        <div>
+          <label htmlFor="password" className={labelClass}>
+            Password
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              name="password"
+              required
+              className={`${fieldClass} pr-11`}
+            />
+            <button
+              type="button"
+              onClick={togglePasswordVisibility}
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <Image
+                  src="/images/icons8-hide-16.png"
+                  alt="Hide password"
+                  width={16}
+                  height={16}
+                  unoptimized
+                />
+              ) : (
+                <Image
+                  src="/images/icons8-eye-16.png"
+                  alt="Show password"
+                  width={16}
+                  height={16}
+                  unoptimized
+                />
+              )}
+            </button>
+          </div>
+          {state?.password && (
+            <p className="mt-2 text-sm font-bold text-red-500" role="alert">
+              {state?.password}
+            </p>
+          )}
+        </div>
       </div>
-      {state?.email && (
-        <p className="text-red-500 text-lg text-bold">{state?.email}</p>
-      )}
-      {state?.password && (
-        <p className="text-red-500 text-lg text-bold">{state?.password}</p>
-      )}
+
       {state?.message && (
-        <p className="text-red-500 text-lg text-bold">{state?.message}</p>
+        <p className="mt-4 text-sm font-bold text-red-500" role="alert">
+          {state?.message}
+        </p>
       )}
-      <ActionButton className="mt-4">Sign in</ActionButton>
-      <h2 className="mt-4">
+      <ActionButton className="mt-6 w-full">Sign in</ActionButton>
+
+      <h2 className="mt-4 text-sm">
         <Link href="/signup">
           Haven't signed up yet? Click here to sign up.
         </Link>
       </h2>
-      <h2 className="mt-4 text-black">
+      <h2 className="mt-3 text-sm text-black">
         <Link href="/password-reset">Forgot your password? Click here.</Link>
       </h2>
 

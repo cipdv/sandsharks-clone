@@ -7,14 +7,28 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
+import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import { getSession, encrypt } from "@/app/lib/auth";
 import Stripe from "stripe";
-import { sendEmail } from "@/app/lib/email-sender";
-import { sendBatchEmails } from "@/app/lib/email-sender";
+import {
+  chunkForResendBatch,
+  isValidEmailAddress,
+  sendBatchEmails,
+  sendEmail,
+  sendResendEmailWithRetry,
+  sendResendBatchWithRetry,
+} from "@/app/lib/email-sender";
+import { renderEmailBlastEmail } from "@/app/lib/email-templates";
+import {
+  getLocalEmailSendCountForToday,
+  getLocalEmailSendWindow,
+  incrementLocalEmailSendCount,
+} from "@/app/lib/local-email-dev";
+import {
+  getLocalDevelopmentEmailJobProgress,
+} from "@/app/lib/local-email-send-service";
 
-//utils
-import { generateEmailFooter } from "@/app/lib/email-utils";
 import { logout } from "@/app/lib/auth";
 
 //zod schemas
@@ -31,6 +45,99 @@ import { PostFormSchema } from "@/app/schemas/postFormSchema";
 export async function handleLogout() {
   await logout();
   redirect("/");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+export async function submitContactForm(prevState, formData) {
+  const name = String(formData.get("name") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const message = String(formData.get("message") || "").trim();
+
+  if (!name || !email || !message) {
+    return {
+      success: false,
+      message: "Please fill out your name, email address, and message.",
+    };
+  }
+
+  if (!isValidEmailAddress(email)) {
+    return {
+      success: false,
+      message: "Please enter a valid email address.",
+    };
+  }
+
+  if (name.length > 120 || email.length > 254 || message.length > 5000) {
+    return {
+      success: false,
+      message: "Please shorten your message and try again.",
+    };
+  }
+
+  const contactEmail = "sandsharks.org@gmail.com";
+  const emailUser = process.env.EMAIL_USER || contactEmail;
+  const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+
+  if (!emailPass) {
+    console.error("Contact form email failed: EMAIL_PASS or SMTP_PASSWORD is not set.");
+    return {
+      success: false,
+      message: "The contact form is not available right now. Please email sandsharks.org@gmail.com directly.",
+    };
+  }
+
+  const submittedAt = new Date();
+  const escapedName = escapeHtml(name);
+  const escapedEmail = escapeHtml(email);
+  const escapedMessage = escapeHtml(message).replace(/\n/g, "<br />");
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Sandsharks" <${contactEmail}>`,
+      to: contactEmail,
+      replyTo: email,
+      subject: `Sandsharks contact form message from ${name}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #4D1244; line-height: 1.6;">
+          <h2 style="color: #D50B8B;">New contact form message</h2>
+          <p><strong>Name:</strong> ${escapedName}</p>
+          <p><strong>Email:</strong> ${escapedEmail}</p>
+          <p><strong>Submitted:</strong> ${submittedAt.toISOString()}</p>
+          <div style="margin-top: 20px; padding: 16px; background: #FBF3C1; border-left: 4px solid #D50B8B; border-radius: 8px;">
+            ${escapedMessage}
+          </div>
+        </div>
+      `,
+      text: `New contact form message\n\nName: ${name}\nEmail: ${email}\nSubmitted: ${submittedAt.toISOString()}\n\n${message}`,
+    });
+
+    return {
+      success: true,
+      message: "Thanks for reaching out. Your message has been sent.",
+    };
+  } catch (error) {
+    console.error("Error sending contact form email:", error);
+    return {
+      success: false,
+      message: "We could not send your message right now. Please email sandsharks.org@gmail.com directly.",
+    };
+  }
 }
 
 export async function getCurrentUser() {
@@ -3989,19 +4096,18 @@ export async function handleEmailAction(action, id, expires, signature) {
 
     // Verify the signature
     const crypto = require("crypto");
+    if (!process.env.EMAIL_SIGNATURE_SECRET) {
+      return {
+        success: false,
+        message: "Email action links are not configured correctly.",
+      };
+    }
+
     const dataToSign = `action=${decodedAction}&id=${decodedId}&expires=${decodedExpires}`;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.EMAIL_SIGNATURE_SECRET)
       .update(dataToSign)
       .digest("hex");
-
-    console.log("Signature verification:", {
-      dataToSign,
-      expectedSignature,
-      providedSignature: decodedSignature,
-      secretKeyLength: process.env.EMAIL_SIGNATURE_SECRET?.length || 0,
-      match: decodedSignature === expectedSignature,
-    });
 
     if (decodedSignature !== expectedSignature) {
       return {
@@ -4180,7 +4286,7 @@ function simpleMarkdownToHtml(text) {
 
   // Replace links
   text = text.replace(
-    /\[(.*?)\]$$(.*?)$$/g,
+    /\[(.*?)\]\((.*?)\)/g,
     '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>',
   );
 
@@ -4190,63 +4296,193 @@ function simpleMarkdownToHtml(text) {
   return text;
 }
 
-const emailTemplates = {
-  default: (content, subject, memberId) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #0066cc; padding: 20px; text-align: center;">
-        <h1 style="color: white; margin: 0;">Sandsharks</h1>
-      </div>
-      
-      <div style="padding: 20px; background-color: #ffffff;">
-        <h2 style="color: #0066cc;">${subject}</h2>
-        ${content}
-      </div>
-      
-      ${generateEmailFooter(memberId)}
-    </div>
-  `,
+function parseEmailBlastJsonArray(rawValue) {
+  if (!rawValue || typeof rawValue !== "string") {
+    return [];
+  }
 
-  event: (content, subject, memberId) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #ff6600; padding: 20px; text-align: center;">
-        <h1 style="color: white; margin: 0;">Sandsharks Event</h1>
-      </div>
-      
-      <div style="padding: 20px; background-color: #ffffff;">
-        <h2 style="color: #ff6600; text-align: center;">${subject}</h2>
-        <div style="border-left: 4px solid #ff6600; padding-left: 15px;">
-          ${content}
-        </div>
-      </div>
-      
-      ${generateEmailFooter(memberId)}
-    </div>
-  `,
+  try {
+    const parsedValue = JSON.parse(rawValue);
+    return Array.isArray(parsedValue) ? parsedValue : [];
+  } catch {
+    return [];
+  }
+}
 
-  update: (content, subject, memberId) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background-color: #009933; padding: 20px; text-align: center;">
-        <h1 style="color: white; margin: 0;">Sandsharks Weekly Update</h1>
-      </div>
-      
-      <div style="padding: 20px; background-color: #ffffff;">
-        <h2 style="color: #009933;">${subject}</h2>
-        ${content}
-      </div>
-      
-      ${generateEmailFooter(memberId)}
-    </div>
-  `,
+function sanitizeEmailBlastFilename(filename) {
+  const extension = filename.includes(".")
+    ? filename.slice(filename.lastIndexOf("."))
+    : "";
+  const basename = filename.replace(extension, "");
 
-  minimal: (content, subject, memberId) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #333333; border-bottom: 1px solid #eeeeee; padding-bottom: 10px;">${subject}</h2>
-      ${content}
-      
-      ${generateEmailFooter(memberId)}
-    </div>
-  `,
-};
+  const safeBasename = basename
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+
+  return `${safeBasename || "email-image"}${extension.toLowerCase()}`;
+}
+
+async function uploadEmailBlastImages(imageFiles, imageMeta) {
+  if (!imageFiles.length) {
+    return [];
+  }
+
+  const { put } = await import("@vercel/blob");
+  const uploadedImages = [];
+
+  for (const [index, imageFile] of imageFiles.entries()) {
+    if (
+      !imageFile ||
+      typeof imageFile.arrayBuffer !== "function" ||
+      !imageFile.type?.startsWith("image/") ||
+      imageFile.size === 0
+    ) {
+      throw new Error("Only image uploads are supported in email blasts.");
+    }
+
+    const meta = imageMeta[index] || {};
+    const filename = `email-blasts/${Date.now()}-${index}-${sanitizeEmailBlastFilename(
+      imageFile.name || `blast-image-${index + 1}.png`,
+    )}`;
+
+    const blob = await put(filename, imageFile, {
+      access: "public",
+      addRandomSuffix: true,
+    });
+
+    uploadedImages.push({
+      url: blob.url,
+      altText:
+        typeof meta.altText === "string" && meta.altText.trim()
+          ? meta.altText.trim()
+          : "Sandsharks email image",
+      placement:
+        meta.placement === "top" ||
+        meta.placement === "afterMessage" ||
+        meta.placement === "afterPlayDays"
+          ? meta.placement
+          : "afterMessage",
+    });
+  }
+
+  return uploadedImages;
+}
+
+async function getEmailBlastPlayDays(playDayIds) {
+  if (!playDayIds.length) {
+    return [];
+  }
+
+  const playDayResults = await Promise.all(
+    playDayIds.map(async (playDayId) => {
+      const result = await sql`
+        SELECT
+          id,
+          title,
+          description,
+          date,
+          start_time,
+          end_time,
+          courts,
+          is_cancelled
+        FROM play_days
+        WHERE id = ${playDayId}
+      `;
+
+      return result.rows[0] || null;
+    }),
+  );
+
+  if (playDayResults.some((playDay) => !playDay)) {
+    throw new Error("One or more selected play days could not be found.");
+  }
+
+  return playDayResults.map((playDay) => ({
+    id: playDay.id,
+    title: playDay.is_cancelled
+      ? `${playDay.title} (Cancelled)`
+      : playDay.title,
+    description: playDay.description,
+    date: playDay.date ? playDay.date.toISOString().split("T")[0] : null,
+    startTime: playDay.start_time,
+    endTime: playDay.end_time,
+    courts: playDay.courts,
+    isCancelled: playDay.is_cancelled || false,
+  }));
+}
+
+async function getOrCreateEmailBlastRsvpToken(playDayId, memberId) {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 10);
+
+  const tokenResult = await sql`
+    INSERT INTO rsvp_tokens (play_day_id, member_id, expires_at)
+    VALUES (${playDayId}, ${memberId}, ${expiresAt})
+    ON CONFLICT (play_day_id, member_id)
+    DO UPDATE SET
+      expires_at = ${expiresAt},
+      used = FALSE
+    RETURNING token
+  `;
+
+  return tokenResult.rows[0]?.token;
+}
+
+async function buildEmailBlastPlayDaySections(playDays, memberId, baseUrl) {
+  if (!playDays.length || !memberId) {
+    return playDays.map((playDay) => ({
+      ...playDay,
+      rsvpUrl: `${baseUrl}/dashboard/member`,
+      dashboardUrl: `${baseUrl}/dashboard/member`,
+    }));
+  }
+
+  return Promise.all(
+    playDays.map(async (playDay) => {
+      const token = await getOrCreateEmailBlastRsvpToken(playDay.id, memberId);
+
+      return {
+        ...playDay,
+        rsvpUrl: `${baseUrl}/api/rsvp/${token}?action=yes`,
+        dashboardUrl: `${baseUrl}/dashboard/member`,
+      };
+    }),
+  );
+}
+
+function buildEmailBlastText({
+  emailContent,
+  selectedPlayDays,
+  baseUrl,
+  uploadedImages,
+}) {
+  const sections = [emailContent.trim()];
+
+  if (uploadedImages.length > 0) {
+    sections.push(
+      `Photos included in this email: ${uploadedImages
+        .map((image) => image.url)
+        .join(", ")}`,
+    );
+  }
+
+  if (selectedPlayDays.length > 0) {
+    sections.push(
+      `Play days referenced: ${selectedPlayDays
+        .map((playDay) => `${playDay.title} on ${playDay.date}`)
+        .join("; ")}`,
+    );
+  }
+
+  sections.push(
+    `Manage your membership and RSVPs at ${baseUrl}/dashboard/member`,
+    `Unsubscribe at ${baseUrl}/unsubscribe`,
+  );
+
+  return sections.filter(Boolean).join("\n\n");
+}
 
 // Send individual emails to each member with customized content
 // export async function sendEmailBlast(formData) {
@@ -4576,8 +4812,22 @@ export async function sendEmailBlast(formData) {
 
     const subject = formData.get("subject");
     const emailContent = formData.get("emailContent");
-    const template = formData.get("template") || "default";
     const memberGroup = formData.get("memberGroup");
+    const sendMode = formData.get("sendMode") === "test" ? "test" : "blast";
+    const selectedPlayDayIds = parseEmailBlastJsonArray(
+      formData.get("selectedPlayDayIds"),
+    )
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+    const imageMeta = parseEmailBlastJsonArray(formData.get("imageBlockMeta"));
+    const imageFiles = formData
+      .getAll("imageFiles")
+      .filter(
+        (file) =>
+          file &&
+          typeof file.arrayBuffer === "function" &&
+          file.size > 0,
+      );
 
     if (!subject || !emailContent || !memberGroup) {
       return {
@@ -4586,18 +4836,20 @@ export async function sendEmailBlast(formData) {
       };
     }
 
-    const gmailAppPassword =
-      process.env.EMAIL_PASS || process.env.GMAIL_APP_PASSWORD;
-    if (!gmailAppPassword) {
+    if (!process.env.RESEND_API_KEY) {
       return {
         success: false,
         message:
-          "Gmail app password is not configured. Set EMAIL_PASS or GMAIL_APP_PASSWORD.",
+          "Resend is not configured. Set RESEND_API_KEY before sending email blasts.",
       };
     }
 
     const contentHtml = simpleMarkdownToHtml(emailContent);
     const currentYear = new Date().getFullYear();
+    const baseUrl =
+      process.env.NEXT_PUBLIC_BASE_URL || "https://www.sandsharks.ca";
+    const uploadedImages = await uploadEmailBlastImages(imageFiles, imageMeta);
+    const selectedPlayDays = await getEmailBlastPlayDays(selectedPlayDayIds);
 
     let membersQuery;
 
@@ -4642,111 +4894,193 @@ export async function sendEmailBlast(formData) {
       };
     }
 
-    const donationMessage = `
-      <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #ff6600;">
-        <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
-        <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
-        <p><a href="https://sandsharks.ca/donate" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Donate Now</a></p>
-      </div>
-    `;
-
     const shuffledMembers = shuffleArray(membersQuery.rows);
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "sandsharks.org@gmail.com",
-        pass: gmailAppPassword,
-      },
-    });
-
-    const batchSize = 10;
-    const delayBetweenEmails = 2000;
-    const delayBetweenBatches = 90000;
-    const maxRetries = 3;
+    const replyTo = process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com";
+    const invalidRecipients = [];
+    const preparedEmails = [];
     let successCount = 0;
     let failureCount = 0;
+    const textFallback = buildEmailBlastText({
+      emailContent,
+      selectedPlayDays,
+      baseUrl,
+      uploadedImages,
+    });
 
-    const sendWithRetry = async (mailOptions, recipientEmail) => {
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          await transporter.sendMail(mailOptions);
-          return true;
-        } catch (error) {
-          const responseCode = Number(error?.responseCode || 0);
-          const isRetryable =
-            responseCode === 421 ||
-            responseCode === 450 ||
-            responseCode === 451 ||
-            responseCode === 452;
+    if (sendMode === "test") {
+      const testMemberResult = await sql`
+        SELECT id, first_name, email, last_donation_date
+        FROM members
+        WHERE id = 699
+        LIMIT 1
+      `;
 
-          if (!isRetryable || attempt === maxRetries) {
-            console.error(`Failed to send email to ${recipientEmail}:`, error);
-            return false;
-          }
+      const testMember = testMemberResult.rows[0] || null;
+      const normalizedTestEmail = testMember?.email?.trim().toLowerCase();
 
-          const backoffMs = 15000 * 2 ** (attempt - 1);
-          console.warn(
-            `[email-blast] Temporary error (${responseCode}) for ${recipientEmail}. Retrying in ${
-              backoffMs / 1000
-            }s (attempt ${attempt}/${maxRetries})...`,
-          );
-          await delay(backoffMs);
-        }
+      if (!testMember || !isValidEmailAddress(normalizedTestEmail)) {
+        return {
+          success: false,
+          message:
+            "Test email member 699 was not found or does not have a valid email address.",
+        };
       }
 
-      return false;
-    };
+      const testCurrentYear = new Date().getFullYear();
+      const testPlayDaySections = await buildEmailBlastPlayDaySections(
+        selectedPlayDays,
+        testMember.id,
+        baseUrl,
+      );
+      const testHtml = renderEmailBlastEmail({
+        content: contentHtml,
+        subject,
+        firstName: testMember.first_name || "there",
+        memberId: testMember.id,
+        needsDonation:
+          !testMember.last_donation_date ||
+          new Date(testMember.last_donation_date).getFullYear() <
+            testCurrentYear,
+        currentYear: testCurrentYear,
+        imageBlocks: uploadedImages,
+        playDays: testPlayDaySections,
+      });
 
-    for (let i = 0; i < shuffledMembers.length; i += batchSize) {
-      const batch = shuffledMembers.slice(i, i + batchSize);
+      const testIdempotencyKey = `email-blast-test/${createHash("sha256")
+        .update(
+          JSON.stringify({
+            subject,
+            emailContent,
+            selectedPlayDayIds,
+            imageUrls: uploadedImages.map((image) => image.url).sort(),
+            testMemberId: testMember.id,
+          }),
+        )
+        .digest("hex")
+        .slice(0, 20)}`;
 
-      console.log(
-        `[email-blast] Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(
-          shuffledMembers.length / batchSize,
-        )} (${batch.length} emails)`,
+      const { error } = await sendResendEmailWithRetry(
+        {
+          from: "Sandsharks <sandsharks@sandsharks.ca>",
+          to: [normalizedTestEmail],
+          replyTo: "sandsharks.org@gmail.com",
+          subject: `[Test] ${subject}`,
+          html: testHtml,
+          text: textFallback,
+          tags: [
+            { name: "email_type", value: "blast_test" },
+            { name: "member_group", value: memberGroup },
+          ],
+        },
+        { idempotencyKey: testIdempotencyKey },
+        { operationName: "email blast test send" },
       );
 
-      for (let j = 0; j < batch.length; j++) {
-        const member = batch[j];
-        const needsDonationMessage =
-          !member.last_donation_date ||
-          new Date(member.last_donation_date).getFullYear() < currentYear;
-        const memberContentHtml = needsDonationMessage
-          ? contentHtml + donationMessage
-          : contentHtml;
-        const templateFunction = emailTemplates[template] || emailTemplates.default;
-        const htmlMessage = templateFunction(memberContentHtml, subject, member.id);
-
-        const sent = await sendWithRetry(
-          {
-            from: '"Sandsharks" <sandsharks.org@gmail.com>',
-            to: member.email,
-            replyTo: process.env.REPLY_TO_EMAIL || "sandsharks.org@gmail.com",
-            subject,
-            html: htmlMessage,
-            text: `${emailContent}\n\nTo unsubscribe, use the unsubscribe link in this email.`,
-          },
-          member.email,
-        );
-
-        if (sent) {
-          successCount++;
-        } else {
-          failureCount++;
-        }
-
-        if (j + 1 < batch.length) {
-          await delay(delayBetweenEmails);
-        }
+      if (error) {
+        console.error("[email-blast] Failed test send:", error);
+        return {
+          success: false,
+          message: "Failed to send the test email. Please try again.",
+        };
       }
 
-      if (i + batchSize < shuffledMembers.length) {
-        console.log(
-          `[email-blast] Waiting ${
-            delayBetweenBatches / 1000
-          } seconds before next batch...`,
+      return {
+        success: true,
+        message:
+          `Test email sent to ${normalizedTestEmail} as member 699 with reply-to sandsharks.org@gmail.com.`,
+        recipientCount: 1,
+      };
+    }
+
+    for (const member of shuffledMembers) {
+      const normalizedEmail = member.email?.trim().toLowerCase();
+
+      if (!isValidEmailAddress(normalizedEmail)) {
+        invalidRecipients.push(member.email || `member:${member.id}`);
+        continue;
+      }
+
+      const needsDonationMessage =
+        !member.last_donation_date ||
+        new Date(member.last_donation_date).getFullYear() < currentYear;
+
+      const playDaySections = await buildEmailBlastPlayDaySections(
+        selectedPlayDays,
+        member.id,
+        baseUrl,
+      );
+
+      const htmlMessage = renderEmailBlastEmail({
+        content: contentHtml,
+        subject,
+        firstName: member.first_name,
+        memberId: member.id,
+        needsDonation: needsDonationMessage,
+        currentYear,
+        imageBlocks: uploadedImages,
+        playDays: playDaySections,
+      });
+
+      preparedEmails.push({
+        from: "Sandsharks <sandsharks@sandsharks.ca>",
+        to: [normalizedEmail],
+        replyTo,
+        subject,
+        html: htmlMessage,
+        text: textFallback,
+        tags: [
+          { name: "email_type", value: "blast" },
+          { name: "member_group", value: memberGroup },
+          { name: "template", value: "standard" },
+        ],
+      });
+    }
+
+    if (preparedEmails.length === 0) {
+      return {
+        success: false,
+        message: "No valid member email addresses were found for this blast.",
+      };
+    }
+
+    const blastFingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          memberGroup,
+          subject,
+          emailContent,
+          playDayIds: selectedPlayDayIds,
+          images: uploadedImages.map((image) => image.url).sort(),
+          recipients: preparedEmails
+            .map((email) => email.to[0])
+            .sort(),
+        }),
+      )
+      .digest("hex")
+      .slice(0, 20);
+
+    const resendBatches = chunkForResendBatch(preparedEmails);
+
+    for (const [batchIndex, batch] of resendBatches.entries()) {
+      console.log(
+        `[email-blast] Sending Resend batch ${batchIndex + 1} of ${resendBatches.length} (${batch.length} emails)`,
+      );
+
+      const idempotencyKey = `batch-email-blast/${blastFingerprint}/chunk-${batchIndex + 1}`;
+      const { error } = await sendResendBatchWithRetry(
+        batch,
+        { idempotencyKey },
+        { operationName: `email blast batch ${batchIndex + 1}` },
+      );
+
+      if (error) {
+        failureCount += batch.length;
+        console.error(
+          `[email-blast] Failed Resend batch ${batchIndex + 1}:`,
+          error,
         );
-        await delay(delayBetweenBatches);
+      } else {
+        successCount += batch.length;
       }
     }
 
@@ -4774,13 +5108,13 @@ export async function sendEmailBlast(formData) {
         ${new Date()},
         ${memberGroup},
         ${successCount},
-        ${template}
+        ${"standard"}
       )
     `;
 
     return {
       success: true,
-      message: `Email blast sent successfully to ${successCount} members in the "${memberGroup}" group (${failureCount} failed).`,
+      message: `Email blast sent successfully to ${successCount} members in the "${memberGroup}" group (${failureCount} failed${invalidRecipients.length ? `, ${invalidRecipients.length} skipped for invalid email addresses` : ""}).`,
       recipientCount: successCount,
     };
   } catch (error) {
@@ -4790,6 +5124,654 @@ export async function sendEmailBlast(formData) {
       message: "Failed to send email blast. Please try again.",
     };
   }
+}
+
+const LOCAL_DEV_GMAIL_DAILY_CAP = 280;
+const LOCAL_DEV_GMAIL_BATCH_SIZE = 20;
+const LOCAL_DEV_DELAY_BETWEEN_EMAILS_MS = 7000;
+const LOCAL_DEV_DELAY_BETWEEN_BATCHES_MS = 60000;
+
+function buildLocalDevelopmentEmailJobKey({
+  subject,
+  body,
+  sendToAllEligible,
+  recipientMemberIds,
+}) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        subject,
+        body,
+        sendToAllEligible,
+        recipientMemberIds: [...recipientMemberIds].sort((a, b) => a - b),
+      }),
+    )
+    .digest("hex");
+}
+
+async function getLocalDevelopmentEmailJobProgressLegacy(jobId) {
+  const countsResult = await sql`
+    SELECT
+      COUNT(*) AS total_count,
+      COUNT(*) FILTER (WHERE status = 'sent') AS sent_count,
+      COUNT(*) FILTER (WHERE status = 'queued') AS queued_count,
+      COUNT(*) FILTER (WHERE status = 'failed') AS failed_count
+    FROM local_dev_email_job_recipients
+    WHERE job_id = ${jobId}
+  `;
+
+  return {
+    totalCount: Number(countsResult.rows[0]?.total_count || 0),
+    sentCount: Number(countsResult.rows[0]?.sent_count || 0),
+    queuedCount: Number(countsResult.rows[0]?.queued_count || 0),
+    failedCount: Number(countsResult.rows[0]?.failed_count || 0),
+  };
+}
+
+async function processLocalDevelopmentEmailJobLegacy({
+  jobId,
+  subject,
+  body,
+  emailUser,
+  emailPass,
+  replyToEmail,
+}) {
+  const alreadySentToday = await getLocalEmailSendCountForToday();
+  const remainingDailyAllowance = Math.max(
+    LOCAL_DEV_GMAIL_DAILY_CAP - alreadySentToday,
+    0,
+  );
+
+  if (remainingDailyAllowance === 0) {
+    const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+    const progress = await getLocalDevelopmentEmailJobProgressLegacy(jobId);
+
+    return {
+      success: false,
+      message: `Today's local Gmail allowance has already been used. This tool caps sends at ${LOCAL_DEV_GMAIL_DAILY_CAP} recipients per day on this machine.`,
+      jobId,
+      dailyCap: LOCAL_DEV_GMAIL_DAILY_CAP,
+      dailyCountAfterSend: alreadySentToday,
+      nextSafeSendAt: sendWindow.nextSafeSendAt,
+      jobProgress: progress,
+    };
+  }
+
+  await sql`
+    UPDATE local_dev_email_jobs
+    SET
+      last_run_started_at = ${new Date()},
+      updated_at = ${new Date()}
+    WHERE id = ${jobId}
+  `;
+
+  const progressBeforeSend = await getLocalDevelopmentEmailJobProgressLegacy(jobId);
+  const pendingRecipientsResult = await sql`
+    SELECT id, job_id, member_id, email, first_name, last_name, status
+    FROM local_dev_email_job_recipients
+    WHERE
+      job_id = ${jobId}
+      AND status IN ('queued', 'failed')
+    ORDER BY
+      CASE WHEN status = 'queued' THEN 0 ELSE 1 END,
+      member_id ASC
+    LIMIT ${remainingDailyAllowance}
+  `;
+
+  const recipientsToSend = pendingRecipientsResult.rows;
+  const totalOutstandingCount =
+    progressBeforeSend.queuedCount + progressBeforeSend.failedCount;
+  const skippedForDailyCap = Math.max(
+    totalOutstandingCount - recipientsToSend.length,
+    0,
+  );
+
+  if (recipientsToSend.length === 0) {
+    await sql`
+      UPDATE local_dev_email_jobs
+      SET
+        completed_at = COALESCE(completed_at, ${new Date()}),
+        last_run_completed_at = ${new Date()},
+        updated_at = ${new Date()}
+      WHERE id = ${jobId}
+    `;
+
+    return {
+      success: true,
+      message: `This local email job is already complete. ${progressBeforeSend.sentCount} of ${progressBeforeSend.totalCount} recipients have already been sent.`,
+      recipientCount: 0,
+      failureCount: 0,
+      skippedForDailyCap: 0,
+      jobId,
+      dailyCap: LOCAL_DEV_GMAIL_DAILY_CAP,
+      dailyCountAfterSend: alreadySentToday,
+      nextSafeSendAt: null,
+      jobProgress: progressBeforeSend,
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: emailUser,
+      pass: emailPass,
+    },
+  });
+
+  const htmlBody = simpleMarkdownToHtml(body);
+  const htmlMessage = buildLocalDevEmailHtml({
+    subject,
+    bodyHtml: htmlBody,
+  });
+  const recipientBatches = [];
+
+  for (let i = 0; i < recipientsToSend.length; i += LOCAL_DEV_GMAIL_BATCH_SIZE) {
+    recipientBatches.push(
+      recipientsToSend.slice(i, i + LOCAL_DEV_GMAIL_BATCH_SIZE),
+    );
+  }
+
+  let successCount = 0;
+  let failureCount = 0;
+  const failedRecipients = [];
+
+  for (const [batchIndex, batch] of recipientBatches.entries()) {
+    console.log(
+      `[local-email-send] Sending Gmail batch ${batchIndex + 1} of ${recipientBatches.length} (${batch.length} emails)`,
+    );
+
+    for (const [recipientIndex, member] of batch.entries()) {
+      try {
+        await transporter.sendMail({
+          from: `"Sandsharks" <${emailUser}>`,
+          to: member.email,
+          replyTo: replyToEmail,
+          subject,
+          html: htmlMessage,
+          text: `${body}\n\nSent locally from the Sandsharks development email sender.`,
+        });
+
+        await sql`
+          UPDATE local_dev_email_job_recipients
+          SET
+            status = 'sent',
+            sent_at = ${new Date()},
+            last_error = NULL,
+            updated_at = ${new Date()}
+          WHERE id = ${member.id}
+        `;
+
+        successCount += 1;
+        console.log(
+          `[local-email-send] Sent ${successCount}/${recipientsToSend.length} in this run to ${member.email}`,
+        );
+      } catch (error) {
+        await sql`
+          UPDATE local_dev_email_job_recipients
+          SET
+            status = 'failed',
+            last_error = ${error?.message || "Unknown SMTP error"},
+            updated_at = ${new Date()}
+          WHERE id = ${member.id}
+        `;
+
+        failureCount += 1;
+        failedRecipients.push(member.email);
+        console.error(
+          `[local-email-send] Failed for ${member.email}:`,
+          error?.message || error,
+        );
+      }
+
+      const hasMoreEmails =
+        recipientIndex < batch.length - 1 ||
+        batchIndex < recipientBatches.length - 1;
+
+      if (hasMoreEmails) {
+        await delay(LOCAL_DEV_DELAY_BETWEEN_EMAILS_MS);
+      }
+    }
+
+    if (batchIndex < recipientBatches.length - 1) {
+      await delay(LOCAL_DEV_DELAY_BETWEEN_BATCHES_MS);
+    }
+  }
+
+  if (successCount > 0) {
+    await incrementLocalEmailSendCount(successCount);
+  }
+
+  const progressAfterSend = await getLocalDevelopmentEmailJobProgressLegacy(jobId);
+  await sql`
+    UPDATE local_dev_email_jobs
+    SET
+      last_run_completed_at = ${new Date()},
+      completed_at = ${
+        progressAfterSend.queuedCount === 0 && progressAfterSend.failedCount === 0
+          ? new Date()
+          : null
+      },
+      updated_at = ${new Date()}
+    WHERE id = ${jobId}
+  `;
+
+  const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+
+  if (successCount === 0) {
+    return {
+      success: false,
+      message: "No emails were sent successfully.",
+      recipientCount: 0,
+      failureCount,
+      skippedForDailyCap,
+      failedRecipients,
+      jobId,
+      dailyCap: LOCAL_DEV_GMAIL_DAILY_CAP,
+      dailyCountAfterSend: sendWindow.countToday,
+      nextSafeSendAt: sendWindow.nextSafeSendAt,
+      jobProgress: progressAfterSend,
+    };
+  }
+
+  return {
+    success: true,
+    message: `Sent ${successCount} emails locally via Gmail.${failureCount ? ` ${failureCount} failed.` : ""}${skippedForDailyCap ? ` ${skippedForDailyCap} remain for a later run because of the local daily cap or outstanding queue.` : ""}`,
+    recipientCount: successCount,
+    failureCount,
+    skippedForDailyCap,
+    failedRecipients,
+    jobId,
+    dailyCap: LOCAL_DEV_GMAIL_DAILY_CAP,
+    dailyCountAfterSend: sendWindow.countToday,
+    nextSafeSendAt: sendWindow.nextSafeSendAt,
+    jobProgress: progressAfterSend,
+    pacing: {
+      batchSize: LOCAL_DEV_GMAIL_BATCH_SIZE,
+      delayBetweenEmailsMs: LOCAL_DEV_DELAY_BETWEEN_EMAILS_MS,
+      delayBetweenBatchesMs: LOCAL_DEV_DELAY_BETWEEN_BATCHES_MS,
+    },
+  };
+}
+
+function buildLocalDevEmailHtml({ subject, bodyHtml }) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://www.sandsharks.ca";
+  const unsubscribeUrl = `${baseUrl}/unsubscribe`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${subject}</title>
+      </head>
+      <body style="margin:0;padding:12px;background:#f3f7fb;font-family:Arial,sans-serif;color:#163045;">
+        <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #d9e3ef;border-radius:18px;overflow:hidden;">
+          <div style="padding:24px;background:linear-gradient(135deg,#0d3b66 0%,#157a6e 100%);color:#ffffff;">
+            <p style="margin:0 0 8px 0;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.84;">Toronto Sandsharks</p>
+            <h1 style="margin:0;font-size:28px;line-height:1.2;">${subject}</h1>
+          </div>
+          <div style="padding:24px;background:#ffffff;">
+            <div style="font-size:16px;line-height:1.7;color:#24425c;">
+              ${bodyHtml}
+            </div>
+          </div>
+          <div style="padding:18px 24px;border-top:1px solid #d9e3ef;background:#f8fbfe;font-size:12px;line-height:1.6;color:#5f7387;">
+            <p style="margin:8px 0 0 0;">If you no longer wish to receive emails from Sandsharks, <a href="${unsubscribeUrl}" style="color:#0d5ea6;">unsubscribe here</a>.</p>
+            <p style="margin:0;">Toronto Sandsharks Beach Volleyball League · <a href="${baseUrl}" style="color:#0d5ea6;">sandsharks.ca</a></p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+export async function sendLocalDevelopmentEmailBlast({
+  subject,
+  body,
+  sendToAllEligible = false,
+  selectedMemberIds = [],
+}) {
+  "use server";
+
+  try {
+    if (process.env.NODE_ENV !== "development") {
+      return {
+        success: false,
+        message: "This local Gmail sender is only available in development mode.",
+      };
+    }
+
+    const session = await getSession();
+    const user = session?.resultObj;
+
+    if (!user || user.memberType !== "ultrashark") {
+      return {
+        success: false,
+        message: "You must be an ultrashark to use the local email sender.",
+      };
+    }
+
+    const trimmedSubject = String(subject || "").trim();
+    const trimmedBody = String(body || "").trim();
+
+    if (!trimmedSubject || !trimmedBody) {
+      return {
+        success: false,
+        message: "Subject and body are required.",
+      };
+    }
+
+    const emailUser = process.env.EMAIL_USER || "sandsharks.org@gmail.com";
+    const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+
+    if (!emailPass) {
+      return {
+        success: false,
+        message: "EMAIL_PASS or SMTP_PASSWORD must be set for local Gmail sending.",
+      };
+    }
+
+    const allMembers = await getAllMembers();
+    if (!Array.isArray(allMembers)) {
+      return {
+        success: false,
+        message: allMembers?.error || allMembers?.message || "Failed to load members.",
+      };
+    }
+
+    const activeMembers = allMembers.filter(
+      (member) =>
+        member.memberType !== "pending" &&
+        typeof member.email === "string" &&
+        member.email.trim(),
+    );
+
+    const selectedIdSet = new Set((selectedMemberIds || []).map((id) => String(id)));
+    const requestedMembers = sendToAllEligible
+      ? activeMembers.filter((member) => member.emailList)
+      : activeMembers.filter((member) => selectedIdSet.has(String(member.id)));
+
+    if (requestedMembers.length === 0) {
+      return {
+        success: false,
+        message: sendToAllEligible
+          ? "No email-list members are available to send to."
+          : "Select at least one member before sending.",
+      };
+    }
+
+    const uniqueRecipients = Array.from(
+      new Map(
+        requestedMembers.map((member) => [
+          member.email.trim().toLowerCase(),
+          member,
+        ]),
+      ).values(),
+    );
+
+    const recipientMemberIds = uniqueRecipients
+      .map((member) => Number(member.id))
+      .filter((memberId) => Number.isFinite(memberId));
+
+    const jobKey = buildLocalDevelopmentEmailJobKey({
+      subject: trimmedSubject,
+      body: trimmedBody,
+      sendToAllEligible,
+      recipientMemberIds,
+    });
+
+    const existingJobResult = await sql`
+      SELECT id
+      FROM local_dev_email_jobs
+      WHERE job_key = ${jobKey}
+      LIMIT 1
+    `;
+
+    let jobId;
+
+    if (existingJobResult.rows.length > 0) {
+      jobId = existingJobResult.rows[0].id;
+    } else {
+      const insertedJobResult = await sql`
+        INSERT INTO local_dev_email_jobs (
+          created_by,
+          job_key,
+          subject,
+          body,
+          send_to_all_eligible,
+          sender_email,
+          reply_to_email
+        )
+        VALUES (
+          ${user.id},
+          ${jobKey},
+          ${trimmedSubject},
+          ${trimmedBody},
+          ${sendToAllEligible},
+          ${emailUser},
+          ${process.env.REPLY_TO_EMAIL || emailUser}
+        )
+        RETURNING id
+      `;
+
+      jobId = insertedJobResult.rows[0].id;
+    }
+
+    for (const member of uniqueRecipients) {
+      await sql`
+        INSERT INTO local_dev_email_job_recipients (
+          job_id,
+          member_id,
+          email,
+          first_name,
+          last_name,
+          status
+        )
+        VALUES (
+          ${jobId},
+          ${member.id},
+          ${member.email.trim().toLowerCase()},
+          ${member.firstName},
+          ${member.lastName},
+          'queued'
+        )
+        ON CONFLICT (job_id, member_id)
+        DO NOTHING
+      `;
+    }
+
+    const jobProgress = await getLocalDevelopmentEmailJobProgress(jobId);
+    const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+
+    return {
+      success: true,
+      message: "Local email job prepared. Sending will begin when the batch runner starts.",
+      jobId,
+      jobProgress,
+      nextSafeSendAt: sendWindow.nextSafeSendAt,
+    };
+  } catch (error) {
+    console.error("Error sending local development email blast:", error);
+    return {
+      success: false,
+      message: "Failed to send local development email blast.",
+    };
+  }
+}
+
+export async function sendNextLocalDevelopmentEmailBatch(jobId) {
+  "use server";
+
+  try {
+    if (process.env.NODE_ENV !== "development") {
+      return {
+        success: false,
+        message: "This local Gmail sender is only available in development mode.",
+      };
+    }
+
+    const session = await getSession();
+    const user = session?.resultObj;
+
+    if (!user || user.memberType !== "ultrashark") {
+      return {
+        success: false,
+        message: "You must be an ultrashark to use the local email sender.",
+      };
+    }
+
+    const emailUser = process.env.EMAIL_USER || "sandsharks.org@gmail.com";
+    const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASSWORD;
+
+    if (!emailPass) {
+      return {
+        success: false,
+        message: "EMAIL_PASS or SMTP_PASSWORD must be set for local Gmail sending.",
+      };
+    }
+
+    const jobResult = await sql`
+      SELECT id, subject, body, sender_email, reply_to_email
+      FROM local_dev_email_jobs
+      WHERE id = ${jobId}
+      LIMIT 1
+    `;
+
+    if (jobResult.rows.length === 0) {
+      return {
+        success: false,
+        message: "Local email job not found.",
+      };
+    }
+
+    const job = jobResult.rows[0];
+
+    const jobProgress = await getLocalDevelopmentEmailJobProgress(job.id);
+    const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+
+    return {
+      success: true,
+      message: "Local email job is ready for the next batch.",
+      jobId: job.id,
+      jobProgress,
+      nextSafeSendAt: sendWindow.nextSafeSendAt,
+    };
+  } catch (error) {
+    console.error("Error sending next local development email batch:", error);
+    return {
+      success: false,
+      message: "Failed to send the next local development email batch.",
+    };
+  }
+}
+
+export async function getLocalDevelopmentEmailJobStatus(jobId) {
+  "use server";
+
+  try {
+    const session = await getSession();
+    const user = session?.resultObj;
+
+    if (!user || user.memberType !== "ultrashark") {
+      return {
+        success: false,
+        message: "You must be an ultrashark to view local email job status.",
+      };
+    }
+
+    const jobResult = await sql`
+      SELECT
+        id,
+        subject,
+        created_at,
+        last_run_started_at,
+        last_run_completed_at,
+        completed_at
+      FROM local_dev_email_jobs
+      WHERE id = ${jobId}
+      LIMIT 1
+    `;
+
+    if (jobResult.rows.length === 0) {
+      return {
+        success: false,
+        message: "Local email job not found.",
+      };
+    }
+
+    const progress = await getLocalDevelopmentEmailJobProgress(jobId);
+    const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+
+    return {
+      success: true,
+      job: {
+        id: jobResult.rows[0].id,
+        subject: jobResult.rows[0].subject,
+        createdAt: jobResult.rows[0].created_at,
+        lastRunStartedAt: jobResult.rows[0].last_run_started_at,
+        lastRunCompletedAt: jobResult.rows[0].last_run_completed_at,
+        completedAt: jobResult.rows[0].completed_at,
+        ...progress,
+        nextSafeSendAt: sendWindow.nextSafeSendAt,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching local development email job status:", error);
+    return {
+      success: false,
+      message: "Failed to fetch local email job status.",
+    };
+  }
+}
+
+export async function getPendingLocalDevelopmentEmailJobs() {
+  const session = await getSession();
+  const user = session?.resultObj;
+
+  if (!user || user.memberType !== "ultrashark") {
+    return [];
+  }
+
+  const sendWindow = await getLocalEmailSendWindow(LOCAL_DEV_GMAIL_DAILY_CAP);
+  const jobsResult = await sql`
+    SELECT
+      j.id,
+      j.subject,
+      j.created_at,
+      j.last_run_started_at,
+      j.last_run_completed_at,
+      j.completed_at,
+      COUNT(r.id) AS total_count,
+      COUNT(r.id) FILTER (WHERE r.status = 'sent') AS sent_count,
+      COUNT(r.id) FILTER (WHERE r.status = 'queued') AS queued_count,
+      COUNT(r.id) FILTER (WHERE r.status = 'failed') AS failed_count
+    FROM local_dev_email_jobs j
+    JOIN local_dev_email_job_recipients r ON r.job_id = j.id
+    GROUP BY
+      j.id,
+      j.subject,
+      j.created_at,
+      j.last_run_started_at,
+      j.last_run_completed_at,
+      j.completed_at
+    HAVING COUNT(r.id) FILTER (WHERE r.status IN ('queued', 'failed')) > 0
+    ORDER BY j.created_at DESC
+  `;
+
+  return jobsResult.rows.map((row) => ({
+    id: row.id,
+    subject: row.subject,
+    createdAt: row.created_at,
+    lastRunStartedAt: row.last_run_started_at,
+    lastRunCompletedAt: row.last_run_completed_at,
+    completedAt: row.completed_at,
+    totalCount: Number(row.total_count || 0),
+    sentCount: Number(row.sent_count || 0),
+    queuedCount: Number(row.queued_count || 0),
+    failedCount: Number(row.failed_count || 0),
+    nextSafeSendAt: sendWindow.nextSafeSendAt,
+  }));
 }
 
 export async function getEmailBlasts() {
@@ -7453,8 +8435,8 @@ export async function uploadPhotos(formData) {
       }
     }
 
-    revalidatePath("/dashboard/ultrashark/photo-upload");
-    revalidatePath("/dashboard/ultrashark/gallery");
+    revalidatePath("/dashboard/member/photo-gallery");
+    revalidatePath("/dashboard/ultrashark/photo-gallery");
 
     return {
       success: true,
@@ -7474,6 +8456,12 @@ export async function uploadPhotos(formData) {
 
 // Get photos for a specific year
 export async function getPhotosByYear(year) {
+  const parsedYear = Number.parseInt(year, 10);
+
+  if (!Number.isInteger(parsedYear) || parsedYear < 1900 || parsedYear > 3000) {
+    return [];
+  }
+
   try {
     const result = await sql`
       SELECT 
@@ -7484,7 +8472,7 @@ export async function getPhotosByYear(year) {
       LEFT JOIN
         members m ON pg.uploaded_by = m.id
       WHERE
-        pg.year = ${year}
+        pg.year = ${parsedYear}
       ORDER BY
         pg.created_at DESC
     `;
@@ -7526,8 +8514,8 @@ export async function deletePhoto(photoId) {
     // Note: Vercel Blob doesn't have a delete API in the current version
     // The blob will remain but won't be accessible through your app
 
-    revalidatePath("/dashboard/ultrashark/gallery");
-    revalidatePath("/dashboard/ultrashark/photo-upload");
+    revalidatePath("/dashboard/member/photo-gallery");
+    revalidatePath("/dashboard/ultrashark/photo-gallery");
 
     return {
       success: true,

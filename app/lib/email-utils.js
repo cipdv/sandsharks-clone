@@ -20,6 +20,11 @@ export function generateSecureEmailLink(
 
   // Convert memberId to string to ensure consistent type
   const memberIdStr = String(memberId);
+  const emailSignatureSecret = process.env.EMAIL_SIGNATURE_SECRET;
+
+  if (!emailSignatureSecret) {
+    throw new Error("EMAIL_SIGNATURE_SECRET environment variable is not set");
+  }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca";
   const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
@@ -29,18 +34,9 @@ export function generateSecureEmailLink(
 
   // Generate the signature
   const signature = crypto
-    .createHmac("sha256", process.env.EMAIL_SIGNATURE_SECRET)
+    .createHmac("sha256", emailSignatureSecret)
     .update(dataToSign)
     .digest("hex");
-
-  console.log("Generating secure email link:", {
-    action,
-    memberId: memberIdStr,
-    expires,
-    dataToSign,
-    signature,
-    secretKeyLength: process.env.EMAIL_SIGNATURE_SECRET?.length || 0,
-  });
 
   // Return the complete URL
   return `${baseUrl}/email-action?action=${action}&id=${memberIdStr}&expires=${expires}&signature=${signature}`;

@@ -1,8 +1,7 @@
 // app/lib/email-service.js
 import { renderWeeklyPlayDayEmail } from "@/components/emails/WeeklyPlayDayEmail"
-import { Resend } from "resend"
 import { sql } from "@vercel/postgres"
-import { createHash } from "node:crypto"
+import { sendBccEmail } from "@/app/lib/email-sender"
 import { markNoteAsSent, getNextPendingNote } from "@/app/_actions"
 
 // Add a simple debounce mechanism to prevent duplicate sends
@@ -24,14 +23,9 @@ export async function sendWeeklyPlayDayEmails() {
       }
     }
 
-    // Check for required environment variables
-    const resendApiKey = process.env.RESEND_API_KEY
-    if (!resendApiKey) {
+    if (!process.env.RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY environment variable is not set")
     }
-
-    // Initialize Resend
-    const resend = new Resend(resendApiKey)
 
     // Get the base URL for links
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://sandsharks.ca"
@@ -153,20 +147,8 @@ export async function sendWeeklyPlayDayEmails() {
       }
     }
 
-    // Extract just the email addresses for BCC
-    const bccEmails = membersResult.rows.map((member) => member.email);
-    //bcc for testing
-    // const bccEmails = [
-    //   "cip.devries@gmail.com",
-    //   "sandsharks.org@gmail.com",
-    //   "cip_devries@hotmail.com",
-    //   "cippy_d@hotmail.com",
-    //   "cdvsignupspare@gmail.com",
-    //   "info@sandsharks.org",
-    // ]
-
     console.log(
-      `Preparing to send email to ${bccEmails.length} recipients with weeklyNote: ${weeklyNote ? "Yes" : "No"}`,
+      `Preparing to send email to ${membersResult.rows.length} recipients with weeklyNote: ${weeklyNote ? "Yes" : "No"}`,
     )
 
     // Render the non-personalized email HTML
@@ -182,40 +164,17 @@ export async function sendWeeklyPlayDayEmails() {
     const subject =
       playDays.length > 0 ? "Upcoming Play Days This Weekend" : "Sandsharks Weekly Update - No Play Days This Weekend"
 
-    // Send a single email with all recipients in BCC
-    const idempotencyHash = createHash("sha256")
-      .update(
-        JSON.stringify({
-          fridayStr,
-          sundayStr,
-          subject,
-          noteId: noteId || null,
-          recipients: [...bccEmails].sort(),
-        }),
-      )
-      .digest("hex")
-      .slice(0, 20)
+    const sendResult = await sendBccEmail({
+      recipients: membersResult.rows,
+      subject,
+      htmlContent: emailHtml,
+    })
 
-    const idempotencyKey = `weekly-playday/${fridayStr}/${idempotencyHash}`
-
-    const { data, error } = await resend.emails.send(
-      {
-        from: "Sandsharks <sandsharks@sandsharks.ca>",
-        to: "sandsharks.org@gmail.com",
-        bcc: bccEmails,
-        subject: subject,
-        html: emailHtml,
-      },
-      {
-        idempotencyKey,
-      },
-    )
-
-    if (error) {
-      console.error("Error sending weekly play day email:", error)
+    if (!sendResult.success) {
+      console.error("Error sending weekly play day email:", sendResult.error)
       return {
         success: false,
-        error: error,
+        error: sendResult.error,
       }
     }
 
@@ -227,12 +186,15 @@ export async function sendWeeklyPlayDayEmails() {
       await markNoteAsSent(noteId)
     }
 
-    console.log(`Successfully sent weekly play day email to ${bccEmails.length} members`)
+    console.log(
+      `Successfully sent weekly play day email to ${membersResult.rows.length} members`,
+    )
     return {
       success: true,
-      totalEmails: 1, // Just one email sent with multiple BCC recipients
-      recipientCount: bccEmails.length,
-      messageId: data?.id,
+      totalEmails:
+        sendResult.stats?.batchResults?.length || (sendResult.messageId ? 1 : 0),
+      recipientCount: sendResult.stats?.successCount || membersResult.rows.length,
+      messageId: sendResult.messageId,
       noteUsed: noteId ? true : false,
     }
   } catch (error) {

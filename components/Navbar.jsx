@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
+import { Menu, X } from "lucide-react";
 import { handleLogout } from "@/app/_actions";
 import { ActionButton } from "./ActionButton";
 
@@ -10,6 +11,13 @@ const Navbar = ({ currentUser }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
+  const menuLinkClass =
+    "block rounded-xl px-3 py-2.5 text-sm font-medium text-sandsharks-ink transition-colors hover:bg-sandsharks-cream hover:text-sandsharks-magenta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sandsharks-magenta";
+  const featuredMenuLinkClass =
+    "block rounded-xl px-3 py-2.5 text-sm font-semibold text-sandsharks-magenta transition-colors hover:bg-sandsharks-cream focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sandsharks-magenta";
+  const dividerClass = "my-2 border-t border-slate-200";
+  const sectionLabelClass =
+    "px-3 pt-2 text-xs font-semibold uppercase text-slate-500";
 
   // Handle click outside to close menu
   useEffect(() => {
@@ -59,13 +67,13 @@ const Navbar = ({ currentUser }) => {
               className="mr-1"
             />
             <div className="flex flex-col">
-              <h1 className="text-lg md:text-xl font-bold leading-tight text-[#17677a]">
+              <h1 className="text-lg md:text-xl font-bold leading-tight text-sandsharks-magenta">
                 Toronto Sandsharks
               </h1>
-              <h2 className="text-sm md:text-base leading-tight text-[#17677a]">
+              <h2 className="text-sm md:text-base leading-tight text-sandsharks-magenta">
                 Beach Volleyball League
               </h2>
-              <h3 className="text-xs md:text-xs leading-tight text-[#17677a]">
+              <h3 className="text-xs md:text-xs leading-tight text-sandsharks-magenta">
                 Est. 1998
               </h3>
             </div>
@@ -80,7 +88,7 @@ const Navbar = ({ currentUser }) => {
               href="/dashboard/member/donations"
               className="hidden md:block"
             >
-              <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3]">
+              <ActionButton className="bg-sandsharks-magenta text-white hover:bg-sandsharks-lilac hover:text-sandsharks-ink">
                 Make a donation
               </ActionButton>
             </Link>
@@ -90,24 +98,20 @@ const Navbar = ({ currentUser }) => {
           <button
             ref={buttonRef}
             onClick={toggleMenu}
-            className="flex flex-col justify-center items-center w-8 h-8 transition-transform duration-200 hover:scale-110"
-            aria-label="Toggle menu"
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sandsharks-magenta ${
+              isMenuOpen
+                ? "border-sandsharks-magenta bg-sandsharks-magenta text-white shadow-md"
+                : "border-sandsharks-magenta/20 bg-white/70 text-sandsharks-magenta shadow-sm hover:border-sandsharks-magenta/50 hover:bg-white"
+            }`}
+            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isMenuOpen}
+            aria-controls="site-navigation-menu"
           >
-            <div
-              className={`w-6 h-0.5 bg-[#17677a] mb-1.5 transition-transform ${
-                isMenuOpen ? "transform rotate-45 translate-y-2" : ""
-              }`}
-            ></div>
-            <div
-              className={`w-6 h-0.5 bg-[#17677a] mb-1.5 transition-opacity ${
-                isMenuOpen ? "opacity-0" : "opacity-100"
-              }`}
-            ></div>
-            <div
-              className={`w-6 h-0.5 bg-[#17677a] transition-transform ${
-                isMenuOpen ? "transform -rotate-45 -translate-y-2" : ""
-              }`}
-            ></div>
+            {isMenuOpen ? (
+              <X className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>
@@ -115,61 +119,62 @@ const Navbar = ({ currentUser }) => {
       {/* Menu Dropdown (for all screen sizes) */}
       {isMenuOpen && (
         <div
+          id="site-navigation-menu"
           ref={menuRef}
-          className="absolute top-full right-0 w-64 bg-white z-50 shadow-lg rounded-b-lg"
+          className="animate-fadeIn absolute right-4 top-full z-50 w-72 overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-2xl ring-1 ring-black/5 backdrop-blur-md sm:w-80 md:right-8 lg:right-12"
         >
-          <div className="flex flex-col p-4 space-y-4">
+          <div className="flex flex-col p-3">
             {currentUser ? (
               <>
                 {/* Donation button - visible only on small screens */}
                 <Link
                   href="/dashboard/member/donations"
-                  className="md:hidden py-2 rounded pl-2"
+                  className="mb-2 block rounded-xl md:hidden"
                   onClick={closeMenu}
                 >
-                  <ActionButton className="w-full text-left bg-[#e376f1] hover:bg-[#d65ee3]">
+                  <ActionButton className="w-full text-left bg-sandsharks-magenta text-white hover:bg-sandsharks-lilac hover:text-sandsharks-ink">
                     Make a donation
                   </ActionButton>
                 </Link>
 
                 <Link
                   href="/dashboard/member"
-                  className="py-2 hover:bg-gray-100 rounded pl-2 font-medium"
+                  className={featuredMenuLinkClass}
                   onClick={closeMenu}
                 >
                   Dashboard
                 </Link>
-                <Link
+                {/* <Link
                   href="/dashboard/member/league-history"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   League History
-                </Link>
+                </Link> */}
                 <Link
                   href="/dashboard/member/rules"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Rules
                 </Link>
                 <Link
                   href="/dashboard/member/photo-gallery"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Photo Gallery
                 </Link>
                 <Link
                   href="/dashboard/member/members"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Members
                 </Link>
                 <Link
                   href="/dashboard/member/profile"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Profile
@@ -179,7 +184,7 @@ const Navbar = ({ currentUser }) => {
                 {currentUser?.resultObj?.memberType !== "volunteer" && (
                   <Link
                     href="/dashboard/member/volunteering"
-                    className="py-2 hover:bg-gray-100 rounded pl-2"
+                    className={menuLinkClass}
                     onClick={closeMenu}
                   >
                     Become a Volunteer
@@ -188,21 +193,26 @@ const Navbar = ({ currentUser }) => {
 
                 <Link
                   href="/dashboard/member/become-a-sponsor"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Become a Sponsor
                 </Link>
+                <Link
+                  href="/contact"
+                  className={menuLinkClass}
+                  onClick={closeMenu}
+                >
+                  Contact
+                </Link>
 
                 {currentUser?.resultObj?.memberType === "volunteer" && (
                   <>
-                    <div className="border-t border-gray-200 my-2"></div>
-                    <div className="text-sm font-semibold text-gray-500 pl-2">
-                      Volunteer
-                    </div>
+                    <div className={dividerClass}></div>
+                    <div className={sectionLabelClass}>Volunteer</div>
                     <Link
                       href="/dashboard/member/volunteer-guide"
-                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      className={menuLinkClass}
                       onClick={closeMenu}
                     >
                       Volunteer Guide
@@ -212,34 +222,32 @@ const Navbar = ({ currentUser }) => {
 
                 {currentUser?.resultObj?.memberType === "ultrashark" && (
                   <>
-                    <div className="border-t border-gray-200 my-2"></div>
-                    <div className="text-sm font-semibold text-gray-500 pl-2">
-                      Admin
-                    </div>
+                    <div className={dividerClass}></div>
+                    <div className={sectionLabelClass}>Admin</div>
                     <Link
                       href="/dashboard/ultrashark/members"
-                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      className={menuLinkClass}
                       onClick={closeMenu}
                     >
                       Manage Members
                     </Link>
                     <Link
                       href="/dashboard/ultrashark/photo-gallery"
-                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      className={menuLinkClass}
                       onClick={closeMenu}
                     >
                       Manage Photos
                     </Link>
                     <Link
                       href="/dashboard/ultrashark/donations"
-                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      className={menuLinkClass}
                       onClick={closeMenu}
                     >
                       Manage Donations
                     </Link>
                     <Link
                       href="/dashboard/ultrashark/sponsors"
-                      className="py-2 hover:bg-gray-100 rounded pl-2"
+                      className={menuLinkClass}
                       onClick={closeMenu}
                     >
                       Manage Sponsors
@@ -247,7 +255,7 @@ const Navbar = ({ currentUser }) => {
                   </>
                 )}
 
-                <form action={handleLogoutWithMenuClose}>
+                <form action={handleLogoutWithMenuClose} className="mt-2">
                   <ActionButton className="w-full text-left">
                     Sign out
                   </ActionButton>
@@ -255,13 +263,13 @@ const Navbar = ({ currentUser }) => {
               </>
             ) : (
               <>
-                <Link
+                {/* <Link
                   href="/league-history"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   League History
-                </Link>
+                </Link> */}
                 {/* <Link
                   href="/donations"
                   className="py-2 hover:bg-gray-100 rounded pl-2"
@@ -271,21 +279,28 @@ const Navbar = ({ currentUser }) => {
                 </Link> */}
                 <Link
                   href="/rules"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Rules
                 </Link>
                 <Link
+                  href="/contact"
+                  className={menuLinkClass}
+                  onClick={closeMenu}
+                >
+                  Contact
+                </Link>
+                <Link
                   href="/signup"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className={menuLinkClass}
                   onClick={closeMenu}
                 >
                   Sign Up
                 </Link>
                 <Link
                   href="/signin"
-                  className="py-2 hover:bg-gray-100 rounded pl-2"
+                  className="mt-2 block rounded-xl"
                   onClick={closeMenu}
                 >
                   <ActionButton className="w-full text-left">

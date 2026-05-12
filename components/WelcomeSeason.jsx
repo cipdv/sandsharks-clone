@@ -77,7 +77,7 @@ const WelcomeSeason = ({ userId, currentYear }) => {
           </p>
           <div className="flex justify-start">
             <Link href="/dashboard/member/donations">
-              <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+              <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
                 DONATE NOW
               </ActionButton>
             </Link>
@@ -103,7 +103,7 @@ const WelcomeSeason = ({ userId, currentYear }) => {
           </p>
           <div className="flex justify-start">
             <Link href="/dashboard/member/volunteering">
-              <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+              <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
                 SIGN UP TO VOLUNTEER
               </ActionButton>
             </Link>
@@ -135,7 +135,7 @@ const WelcomeSeason = ({ userId, currentYear }) => {
           </p>
           <div className="flex justify-start">
             <Link href="/dashboard/member/become-a-sponsor">
-              <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+              <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
                 SIGN UP TO BECOME A SPONSOR
               </ActionButton>
             </Link>
@@ -179,7 +179,7 @@ const WelcomeSeason = ({ userId, currentYear }) => {
           </p>
           <div className="flex justify-start">
             <Link href="/dashboard/member/profile">
-              <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+              <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
                 UPDATE PROFILE
               </ActionButton>
             </Link>
@@ -211,7 +211,7 @@ const WelcomeSeason = ({ userId, currentYear }) => {
             <input type="hidden" name="userId" value={userId} />
             <ActionButton
               type="submit"
-              className="bg-[#e376f1] hover:bg-[#d65ee3] text-white"
+              className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white"
             >
               Got it. Now let me play! :D
             </ActionButton>
@@ -307,7 +307,7 @@ export default WelcomeSeason;
 //           </p>
 //           <div className="flex justify-start">
 //             <Link href="/dashboard/member/donations">
-//               <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+//               <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
 //                 DONATE NOW
 //               </ActionButton>
 //             </Link>
@@ -333,7 +333,7 @@ export default WelcomeSeason;
 //           </p>
 //           <div className="flex justify-start">
 //             <Link href="/dashboard/member/volunteering">
-//               <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+//               <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
 //                 SIGN UP TO VOLUNTEER
 //               </ActionButton>
 //             </Link>
@@ -365,7 +365,7 @@ export default WelcomeSeason;
 //           </p>
 //           <div className="flex justify-start">
 //             <Link href="/dashboard/member/become-a-sponsor">
-//               <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+//               <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
 //                 SIGN UP TO BECOME A SPONSOR
 //               </ActionButton>
 //             </Link>
@@ -409,7 +409,7 @@ export default WelcomeSeason;
 //           </p>
 //           <div className="flex justify-start">
 //             <Link href="/dashboard/member/profile">
-//               <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+//               <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
 //                 UPDATE PROFILE
 //               </ActionButton>
 //             </Link>

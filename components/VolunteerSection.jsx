@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { signUpForVolunteering } from "@/app/_actions";
 import Link from "next/link";
-import Image from "next/image";
 
 export default function VolunteerSection({ user }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,18 +41,6 @@ export default function VolunteerSection({ user }) {
         <p className="text-lg text-gray-600">
           Help make our beach volleyball community thrive!
         </p>
-      </div>
-
-      <div className="mb-12 relative">
-        <div className="h-64 md:h-80 relative rounded-lg overflow-hidden">
-          <Image
-            src="/images/sandsharks-rainbow-icon.svg"
-            alt="Sandsharks volunteers on the beach"
-            fill
-            unoptimized
-            className="object-cover"
-          />
-        </div>
       </div>
 
       <div className="prose max-w-none mb-10">

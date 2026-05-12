@@ -57,9 +57,10 @@ const AboutTheLeague = () => {
       </p>
       <h1 className="mt-8 mb-8 text-2xl">When do we play?</h1>
       <p className="mt-2">
-        We gather to play on most weekends throughout the Summer. Our season
-        usually starts around early-May and runs until the end of September. Our
-        schedule is posted in the members section of this website.
+        Our season usually starts around early-May and runs until the end of
+        September. Our schedule is posted in the members section of this
+        website. We play most Friday evenings, and occasionally on Saturdays
+        when courts are available.
       </p>
       <br />
       <p>

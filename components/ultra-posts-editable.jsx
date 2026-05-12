@@ -353,7 +353,7 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
         {!isCreating && !editingPlayDayId && !isCancelling && (
           <button
             onClick={handleCreateClick}
-            className="bg-[#e376f1] hover:bg-[#d65ee3] text-white px-4 py-2 rounded w-full sm:w-auto"
+            className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white px-4 py-2 rounded w-full sm:w-auto"
           >
             Create New Play Day
           </button>
@@ -537,7 +537,7 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
                 id="hasClinic"
                 checked={hasClinic}
                 onChange={(e) => setHasClinic(e.target.checked)}
-                className="h-4 w-4 text-[#e376f1] border-gray-300 rounded"
+                className="h-4 w-4 text-sandsharks-magenta border-gray-300 rounded"
               />
               <label htmlFor="hasClinic" className="ml-2 text-sm font-medium text-gray-700">
                 Offer Beginner Clinic
@@ -636,7 +636,7 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
               Cancel
             </button>
 
-            <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white order-1 sm:order-2">
+            <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white order-1 sm:order-2">
               {isCreating ? "Create Play Day" : "Update Play Day"}
             </ActionButton>
           </div>

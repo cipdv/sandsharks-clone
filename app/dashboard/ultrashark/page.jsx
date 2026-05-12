@@ -62,7 +62,7 @@ export default async function AdminDashboard() {
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
-          <EmailBlast previousBlasts={emailBlasts} />
+          <EmailBlast previousBlasts={emailBlasts} playDays={playDays} />
         </div>
         {/* Sponsor Requests Section */}
         <div className="bg-white rounded-lg shadow-md p-6">

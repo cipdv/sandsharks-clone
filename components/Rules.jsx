@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 const Rules = () => {
   return (
     <div className="max-w-6xl mx-auto md:px-8 lg:px-12">
@@ -50,11 +48,6 @@ const Rules = () => {
           throughout the day, and invite newcomers to join you to help them feel
           welcome.
         </p>
-        <div className="mt-8">
-          <Link href="/">
-            <button className="btn">Return to dashboard</button>
-          </Link>
-        </div>
       </section>
     </div>
   );

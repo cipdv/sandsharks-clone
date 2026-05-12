@@ -1,29 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { getPhotosByYear } from "@/app/_actions";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-export default function PhotoGallery({ years, currentYear }) {
-  const [selectedYear, setSelectedYear] = useState("");
-  const [photos, setPhotos] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+export default function PhotoGallery({
+  years,
+  currentYear,
+  initialPhotos = [],
+}) {
+  const initialYear = currentYear?.toString() || "";
+  const displayYears = useMemo(() => {
+    const nextYears = new Set([currentYear, ...(years || [])].filter(Boolean));
+    return Array.from(nextYears).sort((a, b) => b - a);
+  }, [currentYear, years]);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+  const [photos, setPhotos] = useState(initialPhotos || []);
+  const [isLoading, setIsLoading] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState(null);
-  const [hasLoadedDefault, setHasLoadedDefault] = useState(false);
-
-  // Load photos for current year on component mount - only once
-  useEffect(() => {
-    if (!hasLoadedDefault && currentYear && years.includes(currentYear)) {
-      setSelectedYear(currentYear.toString());
-      loadPhotosForYear(currentYear.toString());
-      setHasLoadedDefault(true);
-    } else if (!hasLoadedDefault) {
-      // If no current year, just stop loading
-      setIsLoading(false);
-      setHasLoadedDefault(true);
-    }
-  }, [currentYear, years, hasLoadedDefault]);
 
   const loadPhotosForYear = async (year) => {
     setIsLoading(true);
@@ -35,7 +30,7 @@ export default function PhotoGallery({ years, currentYear }) {
     }
 
     try {
-      const photosData = await getPhotosByYear(Number.parseInt(year));
+      const photosData = await getPhotosByYear(Number.parseInt(year, 10));
       setPhotos(photosData || []);
     } catch (error) {
       console.error("Error fetching photos:", error);
@@ -50,19 +45,8 @@ export default function PhotoGallery({ years, currentYear }) {
     await loadPhotosForYear(year);
   };
 
-  // Don't render anything until initial load is complete
-  if (isLoading && !hasLoadedDefault) {
-    return (
-      <div className="w-3/4 mx-auto mb-12">
-        <div className="flex justify-center items-center h-64">
-          <LoadingSpinner />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-3/4 mx-auto mb-12">
+    <div className="mx-auto mb-12 w-full max-w-6xl">
       <h2 className="text-2xl font-bold text-sandsharks-blue mb-4">
         Photo Gallery
       </h2>
@@ -83,7 +67,7 @@ export default function PhotoGallery({ years, currentYear }) {
           disabled={isLoading}
         >
           <option value="">Select a year</option>
-          {years.map((year) => (
+          {displayYears.map((year) => (
             <option key={year} value={year}>
               {year}
             </option>

@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Sandsharks
 
-## Getting Started
+Next.js app for the Toronto Sandsharks Beach Volleyball League.
 
-First, run the development server:
+## Local Development
+
+Run the app locally:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Email Environment
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+The current email implementation uses Resend for delivery. These variables are expected locally:
 
-## Learn More
+```env
+RESEND_API_KEY=re_xxxxxxxxx
+SENDER_EMAIL_ADDRESS=sandsharks@sandsharks.ca
+REPLY_TO_EMAIL=sandsharks.org@gmail.com
+REPLY_TO_EMAIL_ADDRESSES=sandsharks.org@gmail.com
+EMAIL_SIGNATURE_SECRET=your-signing-secret
+NEXT_PUBLIC_BASE_URL=https://www.sandsharks.ca
+```
 
-To learn more about Next.js, take a look at the following resources:
+`SENDER_EMAIL_ADDRESS` and `REPLY_TO_EMAIL_ADDRESSES` were added to align with Resend's MCP server defaults.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Resend MCP For Codex
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+Resend's MCP server is an AI-agent integration, not part of the app runtime. For Codex, Resend documents this stdio setup:
 
-## Deploy on Vercel
+```bash
+codex mcp add resend \
+  --env RESEND_API_KEY=re_xxxxxxxxx \
+  -- npx -y resend-mcp
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+For this project, use the verified sender and reply-to defaults already configured in `.env.local`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+```bash
+codex mcp add resend \
+  --env RESEND_API_KEY=$env:RESEND_API_KEY \
+  --env SENDER_EMAIL_ADDRESS=$env:SENDER_EMAIL_ADDRESS \
+  --env REPLY_TO_EMAIL_ADDRESSES=$env:REPLY_TO_EMAIL_ADDRESSES \
+  -- npx -y resend-mcp --sender $env:SENDER_EMAIL_ADDRESS --reply-to $env:REPLY_TO_EMAIL_ADDRESSES
+```
+
+If you prefer HTTP transport, Resend documents starting the server like this:
+
+```bash
+npx -y resend-mcp --http --port 3000
+```
+
+Relevant docs:
+
+- Docs index: https://resend.com/docs/llms.txt
+- MCP server: https://resend.com/docs/mcp-server
+- AI onboarding: https://resend.com/docs/ai-onboarding
+
+Agent note from the docs: if you find a specific problem in a Resend docs page, feedback can be submitted to `POST https://resend.com/docs/_mintlify/feedback/resend/agent-feedback` with JSON like `{ "path": "/current-page-path", "feedback": "Description of the issue" }`. That should only be used for concrete, actionable documentation issues.

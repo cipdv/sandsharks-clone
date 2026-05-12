@@ -10,15 +10,17 @@ export default async function Page() {
           Toronto SandSharks is a beach volleyball league for LGBTQ+ folks and
           allies.
         </h1>
-        <div className="w-full mt-4 relative aspect-[16/9]">
-          <Image
-            src="/images/2025-sandsharks-group-photo.jpg"
-            fill
-            sizes="(max-width: 768px) 100vw, 1200px"
-            className="object-cover"
-            alt="Sandsharks group photo"
-            priority
-          />
+        <div className="mt-4 w-full rounded-md border border-sandsharks-magenta/70 p-1.5 shadow-sm ring-1 ring-sandsharks-magenta/10">
+          <div className="relative aspect-[16/9] overflow-hidden rounded-sm">
+            <Image
+              src="/images/2025-sandsharks-group-photo.jpg"
+              fill
+              sizes="(max-width: 768px) 100vw, 1200px"
+              className="object-cover"
+              alt="Sandsharks group photo"
+              priority
+            />
+          </div>
         </div>
         <AboutTheLeague />
         <div className="flex justify-center w-full mt-6">

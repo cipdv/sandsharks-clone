@@ -10,7 +10,8 @@ export async function middleware(request) {
     request.nextUrl.pathname.startsWith("/api/weekly-email") ||
     request.nextUrl.pathname.startsWith("/api/send-season-announcement") ||
     request.nextUrl.pathname.startsWith("/api/rsvp/") ||
-    request.nextUrl.pathname.startsWith("/api/process-email-jobs") // Add this line
+    request.nextUrl.pathname.startsWith("/api/process-email-jobs") ||
+    request.nextUrl.pathname.startsWith("/api/local-email-send/")
   ) {
     return NextResponse.next();
   }
@@ -21,6 +22,7 @@ export async function middleware(request) {
     "/signin",
     "/signup",
     "/survey",
+    "/contact",
     "/password-reset",
     "/league-history",
     "/donations",
@@ -39,6 +41,7 @@ export async function middleware(request) {
   // Define paths that should be accessible even when logged in
   const allowedLoggedInPaths = [
     "/email-action",
+    "/contact",
     "/delete-account",
     "/dashboard/member", // Allow direct access to member dashboard
     "/unsubscribe", // Add this line to allow access to the unsubscribe page

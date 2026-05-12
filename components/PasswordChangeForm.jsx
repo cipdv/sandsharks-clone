@@ -172,7 +172,7 @@ export default function PasswordChangeForm({ user }) {
 
         <div className="flex justify-between pt-4">
           <CancelButton onClick={handleCancel} />
-          <ActionButton className="bg-[#e376f1] hover:bg-[#d65ee3] text-white">
+          <ActionButton className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white">
             Change Password
           </ActionButton>
         </div>
@@ -180,7 +180,7 @@ export default function PasswordChangeForm({ user }) {
       {formLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#e376f1] mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sandsharks-magenta mb-4"></div>
             <p className="text-lg font-medium">Changing password...</p>
           </div>
         </div>

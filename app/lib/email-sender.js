@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import * as EmailTemplates from "./email-templates";
 
 const IDEMPOTENCY_MAX_LENGTH = 256;
+const RESEND_BATCH_MAX_SIZE = 100;
+const DEFAULT_RESEND_MAX_RETRIES = 4;
+const DEFAULT_RESEND_BACKOFF_MS = 1000;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function stableStringify(value) {
   if (value === null || value === undefined) {
@@ -39,6 +43,24 @@ function buildIdempotencyKey(prefix, payload) {
   return key.slice(0, IDEMPOTENCY_MAX_LENGTH);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getResendClient() {
+  const resendApiKey = process.env.RESEND_API_KEY;
+
+  if (!resendApiKey) {
+    throw new Error("RESEND_API_KEY environment variable is not set");
+  }
+
+  return new Resend(resendApiKey);
+}
+
+export function isValidEmailAddress(email) {
+  return typeof email === "string" && EMAIL_REGEX.test(email.trim());
+}
+
 function extractResendErrorCode(error) {
   if (!error) return null;
   if (typeof error === "string") return error;
@@ -50,6 +72,109 @@ function extractResendErrorCode(error) {
     error?.message ||
     null
   );
+}
+
+function isRetryableResendError(error) {
+  const errorCode = extractResendErrorCode(error);
+  const statusCode = Number(
+    error?.statusCode || error?.status || error?.response?.status || 0,
+  );
+
+  return (
+    errorCode === "rate_limit_exceeded" ||
+    errorCode === "application_error" ||
+    errorCode === "internal_server_error" ||
+    statusCode === 429 ||
+    statusCode >= 500
+  );
+}
+
+async function executeResendRequest(sendOperation, { operationName, maxRetries }) {
+  let attempt = 0;
+
+  while (attempt < maxRetries) {
+    attempt += 1;
+
+    try {
+      const result = await sendOperation();
+
+      if (!result?.error) {
+        return result;
+      }
+
+      if (!isRetryableResendError(result.error) || attempt === maxRetries) {
+        return result;
+      }
+
+      const backoffMs = DEFAULT_RESEND_BACKOFF_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[resend] ${operationName} hit ${extractResendErrorCode(
+          result.error,
+        )}. Retrying in ${backoffMs}ms (${attempt}/${maxRetries})`,
+      );
+      await sleep(backoffMs);
+    } catch (error) {
+      if (!isRetryableResendError(error) || attempt === maxRetries) {
+        throw error;
+      }
+
+      const backoffMs = DEFAULT_RESEND_BACKOFF_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[resend] ${operationName} threw ${
+          error?.message || "an unexpected error"
+        }. Retrying in ${backoffMs}ms (${attempt}/${maxRetries})`,
+      );
+      await sleep(backoffMs);
+    }
+  }
+
+  return {
+    data: null,
+    error: {
+      name: "application_error",
+      message: `${operationName} failed after ${maxRetries} attempts`,
+    },
+  };
+}
+
+export async function sendResendEmailWithRetry(
+  payload,
+  requestOptions = {},
+  retryOptions = {},
+) {
+  const resend = getResendClient();
+  const maxRetries =
+    retryOptions.maxRetries || DEFAULT_RESEND_MAX_RETRIES;
+
+  return executeResendRequest(
+    () => resend.emails.send(payload, requestOptions),
+    {
+      operationName: retryOptions.operationName || "emails.send",
+      maxRetries,
+    },
+  );
+}
+
+export async function sendResendBatchWithRetry(
+  payload,
+  requestOptions = {},
+  retryOptions = {},
+) {
+  const resend = getResendClient();
+  const maxRetries =
+    retryOptions.maxRetries || DEFAULT_RESEND_MAX_RETRIES;
+
+  return executeResendRequest(
+    () => resend.batch.send(payload, requestOptions),
+    {
+      operationName: retryOptions.operationName || "batch.send",
+      maxRetries,
+    },
+  );
+}
+
+export function chunkForResendBatch(items, chunkSize = RESEND_BATCH_MAX_SIZE) {
+  return chunkArray(items, chunkSize);
 }
 
 /**
@@ -65,9 +190,6 @@ export async function sendEmail({
   idempotencyKey,
 }) {
   try {
-    // Initialize Resend with API key
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
     // Get the appropriate template rendering function
     let htmlContent;
 
@@ -133,11 +255,11 @@ export async function sendEmail({
         templateData,
       });
 
-    const { data, error } = await resend.emails.send(
+    const { data, error } = await sendResendEmailWithRetry(
       {
         from: "Sandsharks <sandsharks@sandsharks.ca>",
         to,
-        reply_to: replyTo,
+        replyTo,
         subject: resolvedSubject,
         html: htmlContent,
       },
@@ -216,9 +338,6 @@ export async function sendBccEmail({
   idempotencyKey,
 }) {
   try {
-    // Initialize Resend with API key
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
     // In development, send to test email only
     const toEmail =
       process.env.NODE_ENV === "development"
@@ -249,12 +368,12 @@ export async function sendBccEmail({
           htmlContent,
         });
 
-      const { data, error } = await resend.emails.send(
+      const { data, error } = await sendResendEmailWithRetry(
         {
           from: "Sandsharks <sandsharks@sandsharks.ca>",
           to: toEmail,
           bcc: allBccEmails,
-          reply_to: replyTo,
+          replyTo,
           subject: subject,
           html: htmlContent,
         },
@@ -301,21 +420,22 @@ export async function sendBccEmail({
 
       try {
         const batchIdempotencyKey =
-          idempotencyKey ||
-          buildIdempotencyKey("email/bcc-batch", {
-            batchNumber: i + 1,
-            to: toEmail,
-            bcc: [...batch].sort(),
-            subject,
-            htmlContent,
-          });
+          idempotencyKey
+            ? `${idempotencyKey}/batch-${i + 1}`
+            : buildIdempotencyKey("email/bcc-batch", {
+                batchNumber: i + 1,
+                to: toEmail,
+                bcc: [...batch].sort(),
+                subject,
+                htmlContent,
+              });
 
-        const { data, error } = await resend.emails.send(
+        const { data, error } = await sendResendEmailWithRetry(
           {
             from: "Sandsharks <sandsharks@sandsharks.ca>",
             to: toEmail,
             bcc: batch,
-            reply_to: replyTo,
+            replyTo,
             subject: subject,
             html: htmlContent,
           },

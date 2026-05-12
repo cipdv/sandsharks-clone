@@ -3,22 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --foreground-rgb: 77, 18, 68;
+  --sandsharks-cream: #fbf3c1;
+  --sandsharks-mint: #64e2b7;
+  --sandsharks-lilac: #dc8be0;
+  --sandsharks-magenta: #d50b8b;
+  --sandsharks-ink: #4d1244;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 0, 0, 0; /* change this to black */
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --foreground-rgb: 77, 18, 68;
   }
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background-image: url("/images/1x/sand-background.webp");
+  background-color: var(--sandsharks-cream);
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(100, 226, 183, 0.5), transparent 28rem),
+    radial-gradient(circle at 88% 12%, rgba(220, 139, 224, 0.38), transparent 24rem),
+    linear-gradient(135deg, #fff8d6 0%, #fbf3c1 46%, #dff7e9 100%);
   background-repeat: no-repeat;
   background-size: cover;
   background-attachment: fixed;
@@ -26,7 +31,10 @@ body {
 
 @media (max-width: 640px) {
   body {
-    background-image: url("/images/1x/sand-background-mobile.webp");
+    background-image:
+      radial-gradient(circle at 8% 8%, rgba(100, 226, 183, 0.45), transparent 16rem),
+      radial-gradient(circle at 92% 18%, rgba(213, 11, 139, 0.16), transparent 14rem),
+      linear-gradient(150deg, #fff8d6 0%, #fbf3c1 58%, #e6f9ef 100%);
   }
 }
 
@@ -42,13 +50,13 @@ h3,
 h4,
 h5,
 h6 {
-  color: #17677a;
+  color: var(--sandsharks-magenta);
   /* font-style: italic; */
   font-weight: 500;
 }
 
 .sandsharks-blue {
-  color: #17677a;
+  color: var(--sandsharks-magenta);
 }
 
 nav {
@@ -63,48 +71,54 @@ section {
 .btn {
   padding: 0.8rem;
   border-radius: 0.5rem;
-  background: rgb(46, 190, 190);
+  background: var(--sandsharks-mint);
   /* background: rgb(156, 71, 212); */
   border: none;
   cursor: pointer;
   transition: all 0.1s;
+  color: var(--sandsharks-ink);
+  font-weight: 600;
 }
 
 .btn:hover {
-  background: #e376f1;
+  background: var(--sandsharks-lilac);
   /* background: rgb(240, 142, 223); */
 }
 
 .btn-volunteer-signup {
   padding: 0.8rem;
   border-radius: 0.5rem;
-  background: #dabadf;
+  background: var(--sandsharks-lilac);
   /* background: rgb(156, 71, 212); */
   border: none;
   cursor: pointer;
   transition: all 0.1s;
+  color: var(--sandsharks-ink);
 }
 
 .btn-volunteer-signup:hover {
-  background: #bb8cc2;
+  background: var(--sandsharks-magenta);
+  color: white;
   /* background: rgb(240, 142, 223); */
 }
 
 .letter-btn {
   padding: 0.4rem;
   border-radius: 0.5rem;
-  background: rgb(227, 118, 241);
+  background: var(--sandsharks-lilac);
   border: none;
   cursor: pointer;
   font-size: 0.8rem; /* Smaller font size for mobile */
+  color: var(--sandsharks-ink);
 }
 
 .letter-btn-1 {
-  background: rgb(46, 190, 190);
+  background: var(--sandsharks-mint);
 }
 
 .letter-btn-1:hover {
-  background: rgb(227, 118, 241);
+  background: var(--sandsharks-magenta);
+  color: white;
 }
 
 /* Increase padding and font size for larger screens */

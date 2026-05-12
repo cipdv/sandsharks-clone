@@ -10,6 +10,8 @@ export function ActionButton({
   className = "",
   onClick,
   disabled = false,
+  loadingLabel = "Loading...",
+  loadingShortLabel = "...",
 }) {
   const { pending } = useFormStatus();
   const [isLoading, setIsLoading] = useState(false);
@@ -50,8 +52,8 @@ export function ActionButton({
               className="object-contain"
             />
           </div>
-          <span className="hidden sm:inline">Loading...</span>
-          <span className="sm:hidden">...</span>
+          <span className="hidden sm:inline">{loadingLabel}</span>
+          <span className="sm:hidden">{loadingShortLabel}</span>
         </span>
       ) : (
         children

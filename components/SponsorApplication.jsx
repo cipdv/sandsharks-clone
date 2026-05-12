@@ -206,7 +206,7 @@ export default function SponsorApplication({ userId }) {
       <div className="flex justify-end">
         <ActionButton
           disabled={isSubmitting}
-          className="bg-[#e376f1] hover:bg-[#d65ee3] text-white"
+          className="bg-sandsharks-magenta hover:bg-sandsharks-lilac hover:text-sandsharks-ink text-white"
         >
           Submit Application
         </ActionButton>

@@ -321,25 +321,48 @@ export function renderEmailBlastEmail({
   memberId,
   needsDonation,
   currentYear,
+  imageBlocks = [],
+  playDays = [],
 }) {
-  // Add donation message if needed
-  let fullContent = content;
+  const greetingHtml = firstName
+    ? `<p style="margin: 0 0 20px; font-size: 18px; color: #0f172a;">Hi ${firstName},</p>`
+    : "";
+
+  const topImages = renderEmailBlastImages(
+    imageBlocks.filter((image) => image.placement === "top"),
+  );
+  const afterMessageImages = renderEmailBlastImages(
+    imageBlocks.filter((image) => image.placement === "afterMessage"),
+  );
+  const afterPlayDayImages = renderEmailBlastImages(
+    imageBlocks.filter((image) => image.placement === "afterPlayDays"),
+  );
+  const playDaySections = renderPlayDaySections(playDays);
+
+  let fullContent = `
+    ${topImages}
+    <div style="padding: 28px; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); border: 1px solid #dbeafe; border-radius: 20px; margin-bottom: 24px;">
+      ${greetingHtml}
+      <h2 style="margin: 0 0 14px; font-size: 28px; line-height: 1.2; color: #0f172a;">${subject}</h2>
+      <div style="font-size: 16px; line-height: 1.75; color: #334155;">
+        ${content}
+      </div>
+    </div>
+    ${afterMessageImages}
+    ${playDaySections}
+    ${afterPlayDayImages}
+  `;
 
   if (needsDonation) {
     const donationMessage = `
-        <div style="margin-top: 20px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #ff6600;">
+        <div style="margin-top: 24px; padding: 20px; background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 18px;">
           <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
           <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
-          <p><a href="${baseUrl}/donate" style="display: inline-block; background-color: #ff6600; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Donate Now</a></p>
+          <p><a href="${baseUrl}/donate" style="display: inline-block; background-color: #ea580c; color: white; padding: 10px 18px; text-decoration: none; border-radius: 999px; margin-top: 10px; font-weight: 600;">Donate Now</a></p>
         </div>
       `;
 
-    fullContent = `${content}${donationMessage}`;
-  }
-
-  // Add greeting with first name if available
-  if (firstName) {
-    fullContent = `<p>Hello ${firstName},</p>${fullContent}`;
+    fullContent = `${fullContent}${donationMessage}`;
   }
 
   return EmailTemplate({
@@ -508,5 +531,122 @@ export function renderSeasonAnnouncementEmail({
     content,
     memberId,
     templateType: "update",
+  });
+}
+
+function renderEmailBlastImages(images) {
+  if (!images?.length) {
+    return "";
+  }
+
+  return images
+    .map(
+      (image) => `
+        <div style="margin: 0 0 24px;">
+          <img
+            src="${image.url}"
+            alt="${image.altText || "Sandsharks email image"}"
+            style="display: block; width: 100%; max-width: 100%; border-radius: 20px; border: 1px solid #e2e8f0;"
+          />
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderPlayDaySections(playDays) {
+  if (!playDays?.length) {
+    return "";
+  }
+
+  return `
+    <div style="margin: 0 0 24px;">
+      <div style="padding: 24px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 20px;">
+        <h3 style="margin: 0 0 16px; font-size: 22px; color: #0f172a;">Upcoming Play Days</h3>
+        <div>
+          ${playDays
+            .map(
+              (playDay) => `
+                <div style="padding: 20px; background-color: #ffffff; border: 1px solid #dbeafe; border-radius: 18px; margin-bottom: 16px;">
+                  <p style="margin: 0 0 6px; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: #2563eb; font-weight: 700;">
+                    ${formatPlayDayDate(playDay.date)}
+                  </p>
+                  <h4 style="margin: 0 0 12px; font-size: 22px; line-height: 1.3; color: #0f172a;">
+                    ${playDay.title || "Play Day"}
+                  </h4>
+                  <p style="margin: 0 0 8px; color: #334155;"><strong>Time:</strong> ${formatPlayDayTimeRange(playDay.startTime, playDay.endTime)}</p>
+                  <p style="margin: 0 0 12px; color: #334155;"><strong>Courts:</strong> ${playDay.courts || "TBD"}</p>
+                  ${
+                    playDay.description
+                      ? `<div style="margin: 0 0 18px; font-size: 15px; line-height: 1.7; color: #475569;">${playDay.description}</div>`
+                      : ""
+                  }
+                  <div style="margin-top: 18px;">
+                    <a
+                      href="${playDay.rsvpUrl}"
+                      style="display: inline-block; background-color: #059669; color: #ffffff; padding: 12px 20px; border-radius: 999px; text-decoration: none; font-weight: 700;"
+                    >
+                      RSVP to this play day
+                    </a>
+                    ${
+                      playDay.dashboardUrl
+                        ? `<a href="${playDay.dashboardUrl}" style="display: inline-block; margin-left: 12px; color: #2563eb; text-decoration: none; font-weight: 600;">Open dashboard</a>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function formatPlayDayDate(dateString) {
+  if (!dateString) {
+    return "Date TBA";
+  }
+
+  const parsedDate = new Date(`${dateString}T12:00:00`);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateString;
+  }
+
+  return parsedDate.toLocaleDateString("en-CA", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatPlayDayTimeRange(startTime, endTime) {
+  const formattedStart = formatTimeLabel(startTime);
+  const formattedEnd = formatTimeLabel(endTime);
+
+  if (formattedStart && formattedEnd) {
+    return `${formattedStart} to ${formattedEnd}`;
+  }
+
+  return formattedStart || formattedEnd || "Time TBA";
+}
+
+function formatTimeLabel(timeValue) {
+  if (!timeValue) {
+    return "";
+  }
+
+  const normalizedTime = String(timeValue).slice(0, 5);
+  const parsedDate = new Date(`1970-01-01T${normalizedTime}:00`);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return String(timeValue);
+  }
+
+  return parsedDate.toLocaleTimeString("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
