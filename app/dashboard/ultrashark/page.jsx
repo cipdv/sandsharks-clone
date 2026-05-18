@@ -11,7 +11,7 @@ import SponsorRequestsAdmin from "@/components/SponsorRequestsAdmin";
 import UltraPostsEditable from "@/components/ultra-posts-editable";
 import EmailBlast from "@/components/EmailBlast";
 import VolunteerRequestsAdmin from "@/components/VolunteerRequestsAdmin";
-import WeeklyNotesManagement from "@/components/WeeklyNotesManagement";
+import DashboardSection from "@/components/DashboardSection";
 
 export default async function AdminDashboard() {
   const playDays = await getPlayDays();
@@ -26,9 +26,7 @@ export default async function AdminDashboard() {
       <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Volunteer Requests Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold mb-4">Volunteer Requests</h2>
+        <DashboardSection title="Volunteer Requests" defaultOpen={false}>
           {volunteerRequestsResult.success ? (
             <VolunteerRequestsAdmin
               requests={volunteerRequestsResult.requests}
@@ -39,34 +37,29 @@ export default async function AdminDashboard() {
                 "Failed to load volunteer requests"}
             </div>
           )}
-        </div>
+        </DashboardSection>
 
-        {/* Weekly Notes Management Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold mb-4">Weekly Email Notes</h2>
-          <WeeklyNotesManagement />
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold mb-4">Play Days</h2>
+        <DashboardSection title="Play Days" defaultOpen={false}>
           <UltraPostsEditable
             existingPlayDays={playDays}
             sponsors={sponsors}
             members={members}
           />
-        </div>
+        </DashboardSection>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold mb-4">Sponsors</h2>
+        <DashboardSection title="Sponsors" defaultOpen={false}>
           <SponsorsManagement sponsors={sponsors} members={members} />
-        </div>
+        </DashboardSection>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <EmailBlast previousBlasts={emailBlasts} playDays={playDays} />
-        </div>
-        {/* Sponsor Requests Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-2xl font-bold mb-4">Sponsorship Requests</h2>
+        <DashboardSection title="Email Blast" defaultOpen={false}>
+          <EmailBlast
+            previousBlasts={emailBlasts}
+            playDays={playDays}
+            showHeading={false}
+          />
+        </DashboardSection>
+
+        <DashboardSection title="Sponsorship Requests" defaultOpen={false}>
           {sponsorRequestsResult.success ? (
             <SponsorRequestsAdmin requests={sponsorRequestsResult.requests} />
           ) : (
@@ -75,7 +68,7 @@ export default async function AdminDashboard() {
                 "Failed to load sponsorship requests"}
             </div>
           )}
-        </div>
+        </DashboardSection>
       </div>
     </div>
   );

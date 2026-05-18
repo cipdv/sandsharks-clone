@@ -1,0 +1,27 @@
+
+> sandsharks-org@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.5.18
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.17:3000
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+ ✓ Ready in 1759ms
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 1056ms (249 modules)
+middleware ran successfully
+middleware ran successfully
+ ○ Compiling /signin ...
+ ✓ Compiled /signin in 6.9s (1877 modules)
+ GET /signin?redirectTo=%2Fdashboard%2Fultrashark 200 in 7552ms
+ ✓ Compiled in 820ms (272 modules)
+middleware ran successfully
+ ○ Compiling /dashboard/ultrashark ...
+ ✓ Compiled /dashboard/ultrashark in 2.7s (2639 modules)
+ ✓ Compiled /icon.ico in 383ms (2377 modules)
+ GET /icon.ico?8e829a907bd383c1 200 in 579ms
+ GET /dashboard/ultrashark 200 in 10795ms

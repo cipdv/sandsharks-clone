@@ -32,7 +32,11 @@ function formatPlayDayLabel(playDay) {
   return `${formattedDate} - ${playDay.title || "Play Day"}`;
 }
 
-export default function EmailBlast({ previousBlasts = [], playDays = [] }) {
+export default function EmailBlast({
+  previousBlasts = [],
+  playDays = [],
+  showHeading = true,
+}) {
   const [isPending, setIsPending] = useState(false);
   const [message, setMessage] = useState(null);
   const [, setBlasts] = useState(previousBlasts);
@@ -266,7 +270,7 @@ export default function EmailBlast({ previousBlasts = [], playDays = [] }) {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-2">Email Blast</h2>
+      {showHeading && <h2 className="text-2xl font-bold mb-2">Email Blast</h2>}
       <p className="text-sm text-gray-600 mb-6">
         Uses one shared Sandsharks email design with the site logo, play day RSVP
         sections, and unsubscribe links included automatically.

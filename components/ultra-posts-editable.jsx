@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { createPlayDay, updatePlayDay, deletePlayDay, cancelPlayDay } from "@/app/_actions"
 import { ActionButton } from "@/components/ActionButton"
 
@@ -20,9 +20,22 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
     if (!b.date) return -1
     return new Date(a.date) - new Date(b.date)
   })
+  const currentYear = String(new Date().getFullYear())
+  const playDayYears = useMemo(() => {
+    const years = Array.from(
+      new Set(
+        sortedPlayDays
+          .map((playDay) => String(playDay?.date || "").slice(0, 4))
+          .filter((year) => /^\d{4}$/.test(year)),
+      ),
+    ).sort((a, b) => Number(b) - Number(a))
+
+    return years.includes(currentYear) ? years : [currentYear, ...years]
+  }, [sortedPlayDays, currentYear])
 
   const [isCreating, setIsCreating] = useState(false)
   const [editingPlayDayId, setEditingPlayDayId] = useState(null)
+  const [selectedYear, setSelectedYear] = useState(currentYear)
   const [formError, setFormError] = useState("")
   const [formSuccess, setFormSuccess] = useState("")
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
@@ -58,6 +71,16 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
     setIsLoadingMembers(members.length === 0)
     setIsLoadingSponsors(sponsors.length === 0)
   }, [members, sponsors])
+
+  const filteredPlayDays = useMemo(
+    () =>
+      sortedPlayDays.filter((playDay) =>
+        selectedYear
+          ? String(playDay?.date || "").startsWith(selectedYear)
+          : true,
+      ),
+    [sortedPlayDays, selectedYear],
+  )
 
   const resetForm = () => {
     setTitle("")
@@ -644,7 +667,34 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
       )}
 
       {!isCreating && !editingPlayDayId && !isCancelling && (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-lg shadow">
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <label
+                htmlFor="playDayYearFilter"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Year
+              </label>
+              <select
+                id="playDayYearFilter"
+                value={selectedYear}
+                onChange={(event) => setSelectedYear(event.target.value)}
+                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sandsharks-magenta focus:outline-none focus:ring-sandsharks-magenta sm:w-40"
+              >
+                {playDayYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-sm text-gray-500">
+              Showing {filteredPlayDays.length} play day
+              {filteredPlayDays.length === 1 ? "" : "s"} in {selectedYear}
+            </p>
+          </div>
+          <div className="overflow-x-auto">
           <div className="min-w-full">
             {/* Desktop view */}
             <table className="min-w-full divide-y divide-gray-200 hidden md:table">
@@ -677,14 +727,14 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {sortedPlayDays.length === 0 ? (
+                {filteredPlayDays.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
-                      No play days found. Create your first one!
+                      No play days found for {selectedYear}.
                     </td>
                   </tr>
                 ) : (
-                  sortedPlayDays.map((playDay) => (
+                  filteredPlayDays.map((playDay) => (
                     <tr key={playDay.id} className={playDay.is_cancelled ? "bg-red-50" : ""}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
@@ -778,10 +828,10 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
 
             {/* Mobile view */}
             <div className="md:hidden">
-              {sortedPlayDays.length === 0 ? (
-                <div className="px-6 py-4 text-center text-gray-500">No play days found. Create your first one!</div>
+              {filteredPlayDays.length === 0 ? (
+                <div className="px-6 py-4 text-center text-gray-500">No play days found for {selectedYear}.</div>
               ) : (
-                sortedPlayDays.map((playDay) => (
+                filteredPlayDays.map((playDay) => (
                   <div
                     key={playDay.id}
                     className={`border-b border-gray-200 p-4 ${playDay.is_cancelled ? "bg-red-50" : ""}`}
@@ -914,6 +964,7 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
                 ))
               )}
             </div>
+          </div>
           </div>
         </div>
       )}
