@@ -246,6 +246,13 @@ const Navbar = ({ currentUser }) => {
                       Manage Donations
                     </Link>
                     <Link
+                      href="/dashboard/ultrashark/events"
+                      className={menuLinkClass}
+                      onClick={closeMenu}
+                    >
+                      Guest Sign Up
+                    </Link>
+                    <Link
                       href="/dashboard/ultrashark/sponsors"
                       className={menuLinkClass}
                       onClick={closeMenu}

@@ -30,10 +30,6 @@ function GuestSignupFormContent() {
   const [showFullWaiver, setShowFullWaiver] = useState(false);
   const [includeDonation, setIncludeDonation] = useState(false);
   const [donationAmount, setDonationAmount] = useState("10");
-  const [participationType, setParticipationType] = useState("");
-  const [attendLearnToPlay, setAttendLearnToPlay] = useState(false);
-  const [volleyballLevel, setVolleyballLevel] = useState("");
-  const [competitivePool, setCompetitivePool] = useState("");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -135,8 +131,6 @@ function GuestSignupFormContent() {
 
   const isFormValid =
     waiverAgreement &&
-    participationType &&
-    volleyballLevel &&
     (!includeDonation || (stripe && elements));
 
   return (
@@ -150,42 +144,8 @@ function GuestSignupFormContent() {
         you've never played with Sandsharks before, we're very chill, very
         friendly, and very welcoming to new players.
       </p>
-      <h1 className="text-lg font-bold">
-        Want to learn how to play 2 vs 2 beach volleyball?
-      </h1>
-      <p className="text-gray-700 mt-2 mb-4">
-        Learn-to-Play from 10am - 12pm for any indoor players who want to learn
-        how to apply their skills to 2 vs 2 beach volleyball.
-      </p>
-      <h1 className="text-lg font-bold mt-4">
-        Just want to pop by for a few games?
-      </h1>
-      <p className="text-gray-700 mt-2 mb-4">
-        We’ll have open play from 9am - 3pm. Stop by anytime and play as many
-        games as you like.
-      </p>
-      <h1 className="text-lg font-bold mt-4">
-        Want to challenge yourself in a fun, friendly way?
-      </h1>
-      <p className="text-gray-700 mt-2 mb-4">
-        We’ll be running a tournament, Sandsharks style!
-      </p>
-      <p className="text-gray-700 mt-2 mb-4">Here’s how it’ll work:</p>{" "}
-      <p className="text-gray-700 mt-2 mb-4">
-        Every game you’ll be randomly assigned a partner - at the end of every
-        game each player will record the points their team earned that game.
-      </p>{" "}
-      <p className="text-gray-700 mt-2 mb-4">
-        At the end of all the games, the individual players with the most
-        average points per game will battle it out for the top spot in a round
-        of “queens” style best of 3 series (4 players total, each player plays
-        one game with each other player for a total of 3 games). The player with
-        the most total points from those 3 games will become the winner and
-        crowned the first-ever SuperShark!
-      </p>
-      <h1 className="text-lg font-bold">
-        Use this form to take part in our crossover event on August 4.
-      </h1>
+      <h1 className="text-lg font-bold">June 12, 2026</h1>
+      <p className="text-gray-700 mt-2 mb-4">4-8pm</p>
       <p className="text-gray-700 mt-2 mb-4">
         If you'd like to become a regular member,{" "}
         <Link href="/signup" className="text-blue-500">
@@ -248,217 +208,6 @@ function GuestSignupFormContent() {
               className="w-full bg-gray-100 p-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-        </div>
-
-        {/* Participation Type */}
-        <div className="p-4 bg-white rounded-md border">
-          <h3 className="text-lg font-semibold mb-3">
-            How do you plan to participate?
-          </h3>
-
-          <div className="space-y-3">
-            <div className="flex items-start">
-              <input
-                type="radio"
-                id="tournament"
-                name="participationType"
-                value="tournament"
-                checked={participationType === "tournament"}
-                onChange={(e) => setParticipationType(e.target.value)}
-                className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300"
-                required
-              />
-              <label htmlFor="tournament" className="ml-3 block text-sm">
-                <span className="font-medium">
-                  I want to play in this tournament
-                </span>
-                <p className="text-gray-500 text-xs mt-1">
-                  Participate in the organized tournament format with structured
-                  matches
-                </p>
-              </label>
-            </div>
-
-            <div className="flex items-start">
-              <input
-                type="radio"
-                id="dropIn"
-                name="participationType"
-                value="dropIn"
-                checked={participationType === "dropIn"}
-                onChange={(e) => setParticipationType(e.target.value)}
-                className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300"
-                required
-              />
-              <label htmlFor="dropIn" className="ml-3 block text-sm">
-                <span className="font-medium">
-                  I just want to play a few drop-in games
-                </span>
-                <p className="text-gray-500 text-xs mt-1">
-                  Play casual games at your own pace without tournament
-                  commitment
-                </p>
-              </label>
-            </div>
-          </div>
-
-          {!participationType && (
-            <p className="text-red-500 text-sm mt-2">
-              * Please select how you plan to participate
-            </p>
-          )}
-        </div>
-
-        {/* Learn to Play Session */}
-        <div className="p-4 bg-white rounded-md border">
-          <h3 className="text-lg font-semibold mb-3">Learn to Play Session</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            We offer a "Learn to Play" session for anyone wanting to learn how
-            to apply their skills to 2 vs 2 beach volleyball from 10am - 12pm.
-          </p>
-
-          <div className="flex items-start">
-            <input
-              type="checkbox"
-              id="attendLearnToPlay"
-              name="attendLearnToPlay"
-              checked={attendLearnToPlay}
-              onChange={(e) => setAttendLearnToPlay(e.target.checked)}
-              className="h-4 w-4 mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label htmlFor="attendLearnToPlay" className="ml-3 block text-sm">
-              <span className="font-medium">
-                I would like to attend the "Learn to Play" session
-              </span>
-            </label>
-          </div>
-        </div>
-
-        {/* Volleyball Experience */}
-        <div className="p-4 bg-white rounded-md border">
-          <h3 className="text-lg font-semibold mb-3">Volleyball Experience</h3>
-          <p className="text-sm text-gray-600 mb-4">
-            Please let us know your volleyball experience level so we can better
-            organize games and matches.
-          </p>
-
-          <div className="space-y-3">
-            <div className="flex items-start">
-              <input
-                type="radio"
-                id="recreational"
-                name="volleyballLevel"
-                value="recreational"
-                checked={volleyballLevel === "recreational"}
-                onChange={(e) => {
-                  setVolleyballLevel(e.target.value);
-                  setCompetitivePool(""); // Clear competitive pool when changing levels
-                }}
-                className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300"
-                required
-              />
-              <label htmlFor="recreational" className="ml-3 block text-sm">
-                <span className="font-medium">Recreational</span>
-              </label>
-            </div>
-
-            <div className="flex items-start">
-              <input
-                type="radio"
-                id="intermediate"
-                name="volleyballLevel"
-                value="intermediate"
-                checked={volleyballLevel === "intermediate"}
-                onChange={(e) => {
-                  setVolleyballLevel(e.target.value);
-                  setCompetitivePool(""); // Clear competitive pool when changing levels
-                }}
-                className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300"
-                required
-              />
-              <label htmlFor="intermediate" className="ml-3 block text-sm">
-                <span className="font-medium">Intermediate</span>
-              </label>
-            </div>
-
-            <div className="flex items-start">
-              <input
-                type="radio"
-                id="competitive"
-                name="volleyballLevel"
-                value="competitive"
-                checked={volleyballLevel === "competitive"}
-                onChange={(e) => {
-                  setVolleyballLevel(e.target.value);
-                  setCompetitivePool(""); // Clear competitive pool when changing levels
-                }}
-                className="h-4 w-4 mt-1 text-blue-600 focus:ring-blue-500 border-gray-300"
-                required
-              />
-              <label htmlFor="competitive" className="ml-3 block text-sm">
-                <span className="font-medium">Competitive</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Competitive Pool Selection */}
-          {volleyballLevel === "competitive" && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-md border">
-              <h4 className="text-md font-medium mb-3">Highest Pool Played</h4>
-              <p className="text-sm text-gray-600 mb-3">
-                What's the highest competitive pool/division you've played in?
-              </p>
-
-              <div className="w-full max-w-xs">
-                <label
-                  htmlFor="competitivePool"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Select Pool *
-                </label>
-                <select
-                  id="competitivePool"
-                  name="competitivePool"
-                  value={competitivePool}
-                  onChange={(e) => setCompetitivePool(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required={volleyballLevel === "competitive"}
-                >
-                  <option value="">Choose a pool...</option>
-                  {[
-                    "A",
-                    "B",
-                    "C",
-                    "D",
-                    "E",
-                    "F",
-                    "G",
-                    "H",
-                    "I",
-                    "J",
-                    "K",
-                    "L",
-                  ].map((pool) => (
-                    <option key={pool} value={pool}>
-                      {pool} Pool
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {volleyballLevel === "competitive" && !competitivePool && (
-                <p className="text-red-500 text-sm mt-2">
-                  * Please select your highest pool played
-                </p>
-              )}
-            </div>
-          )}
-
-          {!volleyballLevel && (
-            <p className="text-red-500 text-sm mt-2">
-              * Please select your volleyball experience level
-            </p>
-          )}
         </div>
 
         {/* Waiver and Code of Conduct */}

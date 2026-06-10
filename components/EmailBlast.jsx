@@ -591,6 +591,26 @@ export default function EmailBlast({
           </div>
         )}
 
+        {isPending && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+          >
+            <span
+              aria-hidden="true"
+              className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-200 border-t-blue-700"
+            />
+            <div>
+              <p className="font-medium">Sending emails. Please wait.</p>
+              <p className="mt-1 text-blue-700">
+                Keep this page open until the send finishes and a confirmation
+                message appears.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid gap-3 md:grid-cols-2">
           <button
             type="submit"

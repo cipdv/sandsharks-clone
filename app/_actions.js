@@ -8805,14 +8805,12 @@ export async function registerGuestOnly(prevState, formData) {
       volleyballLevel = null;
     }
 
-    // Validate required fields (including volleyball level)
+    // Validate required fields
     if (
       !firstName ||
       !lastName ||
       !email ||
-      !waiverAgreement ||
-      !participationType ||
-      !volleyballLevel
+      !waiverAgreement
     ) {
       return {
         success: false,
@@ -8849,33 +8847,57 @@ export async function registerGuestOnly(prevState, formData) {
       };
     }
 
-    // Convert participationType from form value to database value
-    const signUpFor = participationType === "dropIn" ? "drop_in" : "tournament";
+    let result;
 
-    // Insert new guest with all fields including volleyball level
-    const result = await sql`
-      INSERT INTO guests (
-        first_name, 
-        last_name, 
-        email, 
-        photo_release, 
-        waiver_confirmed_at,
-        sign_up_for,
-        clinic,
-        volleyball_level
-      )
-      VALUES (
-        ${firstName}, 
-        ${lastName}, 
-        ${email}, 
-        ${photoConsent}, 
-        CURRENT_TIMESTAMP,
-        ${signUpFor},
-        ${attendLearnToPlay},
-        ${volleyballLevel}
-      )
-      RETURNING id
-    `;
+    if (participationType || volleyballLevel) {
+      // Convert participationType from form value to database value
+      const signUpFor =
+        participationType === "dropIn" ? "drop_in" : "tournament";
+
+      // Insert new guest with all event-specific fields when the form provides them
+      result = await sql`
+        INSERT INTO guests (
+          first_name, 
+          last_name, 
+          email, 
+          photo_release, 
+          waiver_confirmed_at,
+          sign_up_for,
+          clinic,
+          volleyball_level
+        )
+        VALUES (
+          ${firstName}, 
+          ${lastName}, 
+          ${email}, 
+          ${photoConsent}, 
+          CURRENT_TIMESTAMP,
+          ${signUpFor},
+          ${attendLearnToPlay},
+          ${volleyballLevel}
+        )
+        RETURNING id
+      `;
+    } else {
+      // The simplified guest form does not collect event-specific preferences.
+      result = await sql`
+        INSERT INTO guests (
+          first_name, 
+          last_name, 
+          email, 
+          photo_release, 
+          waiver_confirmed_at
+        )
+        VALUES (
+          ${firstName}, 
+          ${lastName}, 
+          ${email}, 
+          ${photoConsent}, 
+          CURRENT_TIMESTAMP
+        )
+        RETURNING id
+      `;
+    }
 
     const guestId = result.rows[0].id;
     console.log("Guest registered with ID:", guestId);

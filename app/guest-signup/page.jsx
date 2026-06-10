@@ -19,10 +19,10 @@ export default function GuestSignupPage() {
           </h2>
           <div className="mt-4">
             <p className="text-xl md:text-2xl font-semibold text-gray-700">
-              August 4, 2025
+              June 12, 2026
             </p>
             <p className="text-lg md:text-xl font-medium text-gray-600">
-              9am - 3pm
+              4 - 8pm
             </p>
           </div>
         </div>
