@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendEmailBlast } from "@/app/_actions";
+import Image from "next/image";
 
 const memberGroups = [
   { value: "all", label: "All Members" },
@@ -38,6 +39,7 @@ export default function EmailBlast({
   showHeading = true,
 }) {
   const [isPending, setIsPending] = useState(false);
+  const [pendingMode, setPendingMode] = useState(null);
   const [message, setMessage] = useState(null);
   const [, setBlasts] = useState(previousBlasts);
   const [selectedGroup, setSelectedGroup] = useState("all");
@@ -208,7 +210,9 @@ export default function EmailBlast({
   };
 
   async function handleSubmit(formData) {
+    const sendMode = formData.get("sendMode");
     setIsPending(true);
+    setPendingMode(sendMode);
     setMessage(null);
 
     try {
@@ -265,6 +269,7 @@ export default function EmailBlast({
       });
     } finally {
       setIsPending(false);
+      setPendingMode(null);
     }
   }
 
@@ -619,7 +624,23 @@ export default function EmailBlast({
             disabled={isPending}
             className="rounded-md border border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
           >
-            {isPending ? "Sending..." : "Send Test Email"}
+            {pendingMode === "test" ? (
+              <span className="flex items-center justify-center">
+                <span className="rotating-logo -ml-1 mr-2">
+                  <Image
+                    src="/images/sandsharks-outline-icon.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                    unoptimized
+                    className="object-contain"
+                  />
+                </span>
+                Sending...
+              </span>
+            ) : (
+              "Send Test Email"
+            )}
           </button>
 
           <button
@@ -629,14 +650,28 @@ export default function EmailBlast({
             disabled={isPending}
             className="rounded-md border border-transparent bg-blue-600 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
           >
-            {isPending
-              ? "Sending..."
-              : `Send Email to ${
+            {pendingMode === "blast" ? (
+              <span className="flex items-center justify-center">
+                <span className="rotating-logo -ml-1 mr-2">
+                  <Image
+                    src="/images/sandsharks-outline-icon.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                    unoptimized
+                    className="object-contain"
+                  />
+                </span>
+                Sending...
+              </span>
+            ) : (
+              `Send Email to ${
                   selectedGroup === "all"
                     ? "All Members"
                     : memberGroups.find((group) => group.value === selectedGroup)
                         ?.label
-                }`}
+                }`
+            )}
           </button>
         </div>
       </form>

@@ -338,6 +338,15 @@ export function renderEmailBlastEmail({
     imageBlocks.filter((image) => image.placement === "afterPlayDays"),
   );
   const playDaySections = renderPlayDaySections(playDays);
+  const donationMessage = needsDonation
+    ? `
+        <div style="margin-top: 24px; padding: 20px; background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 18px;">
+          <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
+          <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
+          <p><a href="${baseUrl}/donate" style="display: inline-block; background-color: #ea580c; color: white; padding: 10px 18px; text-decoration: none; border-radius: 999px; margin-top: 10px; font-weight: 600;">Donate Now</a></p>
+        </div>
+      `
+    : "";
 
   let fullContent = `
     ${topImages}
@@ -349,21 +358,10 @@ export function renderEmailBlastEmail({
       </div>
     </div>
     ${afterMessageImages}
+    ${donationMessage}
     ${playDaySections}
     ${afterPlayDayImages}
   `;
-
-  if (needsDonation) {
-    const donationMessage = `
-        <div style="margin-top: 24px; padding: 20px; background-color: #fff7ed; border: 1px solid #fed7aa; border-radius: 18px;">
-          <p><strong>Please consider making a donation to Sandsharks for the ${currentYear} season.</strong></p>
-          <p>Sandsharks is run solely by volunteers and donations from members like you. Donations cover the costs of court rentals, storage, new equipment, insurance, website hosting, and more. Donations are pay-what-you-can, with a suggested donation of $40 for the entire season.</p>
-          <p><a href="${baseUrl}/donate" style="display: inline-block; background-color: #ea580c; color: white; padding: 10px 18px; text-decoration: none; border-radius: 999px; margin-top: 10px; font-weight: 600;">Donate Now</a></p>
-        </div>
-      `;
-
-    fullContent = `${fullContent}${donationMessage}`;
-  }
 
   return EmailTemplate({
     subject,
