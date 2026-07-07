@@ -3,6 +3,7 @@
 import { sql } from "@vercel/postgres";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { unstable_rethrow } from "next/navigation";
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -138,17 +139,39 @@ export async function logout() {
 }
 
 export async function getSession() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get("session")?.value;
-  if (!session) return null;
-  return await decrypt(session);
+  try {
+    const cookieStore = await cookies();
+    const session = cookieStore.get("session")?.value;
+    if (!session) return null;
+    return await decrypt(session);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Invalid or expired session:", error);
+    return null;
+  }
 }
 
 export async function updateSession(request) {
   const session = request.cookies.get("session")?.value;
   if (!session) return;
 
-  const parsed = await decrypt(session);
+  let parsed;
+  try {
+    parsed = await decrypt(session);
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Invalid or expired session during refresh:", error);
+    const res = NextResponse.next();
+    res.cookies.set("session", "", {
+      expires: new Date(0),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+    return res;
+  }
+
   parsed.expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
   const res = NextResponse.next();
   res.cookies.set({

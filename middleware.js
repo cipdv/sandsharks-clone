@@ -71,6 +71,7 @@ export async function middleware(request) {
   // Get current user from cookie
   const currentUser = request.cookies.get("session")?.value;
   let currentUserObj = null;
+  let shouldClearSession = false;
 
   if (currentUser) {
     try {
@@ -79,13 +80,15 @@ export async function middleware(request) {
       console.error("Error decrypting session:", error);
       // If we can't decrypt the session, treat as if no session exists
       // This handles corrupted cookies
+      shouldClearSession = true;
     }
   }
 
+  const isAuthenticated = Boolean(currentUserObj?.resultObj);
   const memberType = currentUserObj?.resultObj?.memberType;
 
   // If this is an email access and the user is not logged in, redirect to signin with special parameters
-  if (isEmailAccess && !currentUser) {
+  if (isEmailAccess && !isAuthenticated) {
     const target = request.nextUrl.searchParams.get("target");
     const url = new URL("/signin", request.url);
 
@@ -99,14 +102,26 @@ export async function middleware(request) {
   }
 
   // If user is not logged in and trying to access a non-public path, redirect to signin
-  if (!currentUser && !isPublicPath) {
+  if (!isAuthenticated && !isPublicPath) {
     // Store the original URL to redirect back after login
     const url = new URL("/signin", request.url);
     url.searchParams.set(
       "redirectTo",
       request.nextUrl.pathname + request.nextUrl.search
     );
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    if (shouldClearSession) {
+      response.cookies.set({
+        name: "session",
+        value: "",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 0,
+        path: "/",
+      });
+    }
+    return response;
   }
 
   // Define dashboard paths for different member types
@@ -122,7 +137,7 @@ export async function middleware(request) {
   // If user is logged in and not on an allowed path, redirect to their dashboard
   // Skip this check if the user is trying to access /dashboard/member directly (from email)
   if (
-    currentUser &&
+    isAuthenticated &&
     memberType &&
     dashboardPaths[memberType] &&
     !isAllowedLoggedInPath && // Check if it's not an allowed logged-in path
@@ -131,6 +146,20 @@ export async function middleware(request) {
     return NextResponse.redirect(
       new URL(dashboardPaths[memberType], request.url)
     );
+  }
+
+  if (shouldClearSession) {
+    const response = NextResponse.next();
+    response.cookies.set({
+      name: "session",
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 0,
+      path: "/",
+    });
+    return response;
   }
 
   return await updateSession(request);

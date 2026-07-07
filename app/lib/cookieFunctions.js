@@ -15,6 +15,22 @@ export async function updateSession(request) {
   // Create a response object
   const response = NextResponse.next();
 
+  try {
+    await decrypt(session);
+  } catch (error) {
+    console.error("Invalid or expired session cookie:", error);
+    response.cookies.set({
+      name: "session",
+      value: "",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 0,
+      path: "/",
+    });
+    return response;
+  }
+
   // Set the cookie with SameSite=None to allow cross-site requests
   // Only set Secure=true in production
   const isProduction = process.env.NODE_ENV === "production";
@@ -37,7 +53,8 @@ export async function setSessionCookie(data) {
   const encryptedData = await encrypt(data);
   const isProduction = process.env.NODE_ENV === "production";
 
-  cookies().set({
+  const cookieStore = await cookies();
+  cookieStore.set({
     name: "session",
     value: encryptedData,
     httpOnly: true,
@@ -50,7 +67,8 @@ export async function setSessionCookie(data) {
 
 // Function to delete the session cookie
 export async function deleteSessionCookie() {
-  cookies().delete("session");
+  const cookieStore = await cookies();
+  cookieStore.delete("session");
 }
 
 // Export decrypt for use in other files
