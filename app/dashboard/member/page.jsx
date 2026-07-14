@@ -1,13 +1,13 @@
 import { getCurrentUser, getPlayDaysForMembers } from "@/app/_actions";
 import Waiver from "@/components/Waiver";
-import WelcomeSeason from "@/components/WelcomeSeason";
+// import WelcomeSeason from "@/components/WelcomeSeason";
 import MemberDashboard from "@/components/MemberDashboard";
 import EmailRedirectHandler from "@/components/EmailRedirectHandler";
 
 const MemberDash = async () => {
   const user = await getCurrentUser();
   const playDays = await getPlayDaysForMembers();
-  const currentYear = new Date().getFullYear();
+  // const currentYear = new Date().getFullYear();
 
   // Check if waiver is valid (confirmed and not expired)
   const hasValidWaiver = isWaiverValid(user);
@@ -15,30 +15,24 @@ const MemberDash = async () => {
   // If waiver is not valid, show the waiver
   if (!hasValidWaiver) {
     return (
-      <EmailRedirectHandler>
-        <section>
-          <Waiver isRenewal={user?.waiverConfirmed} />
-        </section>
-      </EmailRedirectHandler>
+      <section>
+        <Waiver isRenewal={user?.waiverConfirmed} />
+      </section>
     );
   }
 
-  // Check if we need to show the welcome message
-  // Show if welcome_confirmed is null or from a previous year
-  const needsWelcome =
-    !user.welcomeConfirmed ||
-    new Date(user.welcomeConfirmed).getFullYear() < currentYear;
-
-  // If welcome message is needed, show it
-  if (needsWelcome) {
-    return (
-      <EmailRedirectHandler>
-        <section>
-          <WelcomeSeason userId={user.id} currentYear={currentYear} />
-        </section>
-      </EmailRedirectHandler>
-    );
-  }
+  // Welcome season message temporarily disabled.
+  // const needsWelcome =
+  //   !user.welcomeConfirmed ||
+  //   new Date(user.welcomeConfirmed).getFullYear() < currentYear;
+  //
+  // if (needsWelcome) {
+  //   return (
+  //     <section>
+  //       <WelcomeSeason userId={user.id} currentYear={currentYear} />
+  //     </section>
+  //   );
+  // }
 
   // Otherwise, show the dashboard
   return (

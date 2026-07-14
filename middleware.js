@@ -1,4 +1,8 @@
-import { updateSession, decrypt } from "@/app/lib/cookieFunctions";
+import {
+  expireSessionCookie,
+  refreshSessionCookie,
+  validateMiddlewareSession,
+} from "@/app/lib/middleware-session";
 import { NextResponse } from "next/server";
 
 export async function middleware(request) {
@@ -21,7 +25,6 @@ export async function middleware(request) {
     "/",
     "/signin",
     "/signup",
-    "/survey",
     "/contact",
     "/password-reset",
     "/league-history",
@@ -38,13 +41,12 @@ export async function middleware(request) {
     /^\/guest-donation\/.*$/,
   ];
 
-  // Define paths that should be accessible even when logged in
   const allowedLoggedInPaths = [
     "/email-action",
     "/contact",
     "/delete-account",
-    "/dashboard/member", // Allow direct access to member dashboard
-    "/unsubscribe", // Add this line to allow access to the unsubscribe page
+    "/dashboard/member",
+    "/unsubscribe",
     /^\/unsubscribe\/.*$/,
     /^\/account\/delete\/.*$/,
   ];
@@ -56,7 +58,6 @@ export async function middleware(request) {
       : path.test(request.nextUrl.pathname)
   );
 
-  // Check if the current path is allowed even when logged in
   const isAllowedLoggedInPath = allowedLoggedInPaths.some((path) =>
     typeof path === "string"
       ? path === request.nextUrl.pathname
@@ -68,27 +69,14 @@ export async function middleware(request) {
     request.nextUrl.pathname === "/dashboard/member" &&
     request.nextUrl.searchParams.get("from") === "email";
 
-  // Get current user from cookie
-  const currentUser = request.cookies.get("session")?.value;
-  let currentUserObj = null;
-  let shouldClearSession = false;
-
-  if (currentUser) {
-    try {
-      currentUserObj = await decrypt(currentUser);
-    } catch (error) {
-      console.error("Error decrypting session:", error);
-      // If we can't decrypt the session, treat as if no session exists
-      // This handles corrupted cookies
-      shouldClearSession = true;
-    }
-  }
-
-  const isAuthenticated = Boolean(currentUserObj?.resultObj);
-  const memberType = currentUserObj?.resultObj?.memberType;
+  // Use DB-backed session validation so stale pre-migration cookies are cleared
+  // instead of being treated as logged in by middleware redirects.
+  const session = await validateMiddlewareSession(request);
+  const hasSessionToken = Boolean(session.token);
+  const hasValidSession = session.isAuthenticated;
 
   // If this is an email access and the user is not logged in, redirect to signin with special parameters
-  if (isEmailAccess && !isAuthenticated) {
+  if (isEmailAccess && !hasValidSession) {
     const target = request.nextUrl.searchParams.get("target");
     const url = new URL("/signin", request.url);
 
@@ -98,11 +86,12 @@ export async function middleware(request) {
       url.searchParams.set("emailTarget", target);
     }
 
-    return NextResponse.redirect(url);
+    const response = NextResponse.redirect(url);
+    return hasSessionToken ? expireSessionCookie(response) : response;
   }
 
   // If user is not logged in and trying to access a non-public path, redirect to signin
-  if (!isAuthenticated && !isPublicPath) {
+  if (!hasValidSession && !isPublicPath) {
     // Store the original URL to redirect back after login
     const url = new URL("/signin", request.url);
     url.searchParams.set(
@@ -110,59 +99,35 @@ export async function middleware(request) {
       request.nextUrl.pathname + request.nextUrl.search
     );
     const response = NextResponse.redirect(url);
-    if (shouldClearSession) {
-      response.cookies.set({
-        name: "session",
-        value: "",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 0,
-        path: "/",
-      });
-    }
-    return response;
+    return hasSessionToken ? expireSessionCookie(response) : response;
   }
 
-  // Define dashboard paths for different member types
-  const dashboardPaths = {
-    ultrashark: "/dashboard/ultrashark",
-    supershark: "/dashboard/supershark",
-    admin: "/dashboard/ultrashark",
-    volunteer: "/dashboard/member",
-    member: "/dashboard/member",
-    pending: "/dashboard/member",
-  };
+  if (!hasValidSession && hasSessionToken) {
+    return expireSessionCookie(NextResponse.next());
+  }
 
-  // If user is logged in and not on an allowed path, redirect to their dashboard
-  // Skip this check if the user is trying to access /dashboard/member directly (from email)
   if (
-    isAuthenticated &&
-    memberType &&
-    dashboardPaths[memberType] &&
-    !isAllowedLoggedInPath && // Check if it's not an allowed logged-in path
-    !request.nextUrl.pathname.startsWith(dashboardPaths[memberType])
+    hasValidSession &&
+    isPublicPath &&
+    !isAllowedLoggedInPath &&
+    request.nextUrl.pathname !== "/dashboard"
   ) {
-    return NextResponse.redirect(
-      new URL(dashboardPaths[memberType], request.url)
+    return refreshSessionCookie(
+      NextResponse.redirect(new URL("/dashboard", request.url)),
+      session.token,
+      session.expires
     );
   }
 
-  if (shouldClearSession) {
-    const response = NextResponse.next();
-    response.cookies.set({
-      name: "session",
-      value: "",
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 0,
-      path: "/",
-    });
-    return response;
+  if (hasValidSession) {
+    return refreshSessionCookie(
+      NextResponse.next(),
+      session.token,
+      session.expires
+    );
   }
 
-  return await updateSession(request);
+  return NextResponse.next();
 }
 
 export const config = {

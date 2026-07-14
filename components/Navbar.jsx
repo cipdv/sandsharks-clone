@@ -6,9 +6,15 @@ import { useState, useEffect, useRef } from "react";
 import { Menu, X } from "lucide-react";
 import { handleLogout } from "@/app/_actions";
 import { ActionButton } from "./ActionButton";
+import { getDashboardPathForMemberType } from "@/app/lib/dashboard-path";
 
 const Navbar = ({ currentUser }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const memberType = currentUser?.resultObj?.memberType;
+  const dashboardHref = currentUser
+    ? getDashboardPathForMemberType(memberType)
+    : "/";
+  const isAdmin = dashboardHref === "/dashboard/ultrashark";
   const menuRef = useRef(null);
   const buttonRef = useRef(null);
   const menuLinkClass =
@@ -56,7 +62,7 @@ const Navbar = ({ currentUser }) => {
   return (
     <div className="relative max-w-7xl mx-auto px-4 md:px-8 lg:px-12">
       <div className="flex justify-between items-center pt-4 pb-4 mb-4 md:mb-14">
-        <Link href="/" onClick={closeMenu}>
+        <Link href={dashboardHref} onClick={closeMenu}>
           <div className="flex items-center">
             <Image
               src="/images/sandsharks-rainbow-icon.svg"
@@ -138,7 +144,7 @@ const Navbar = ({ currentUser }) => {
                 </Link>
 
                 <Link
-                  href="/dashboard/member"
+                  href={dashboardHref}
                   className={featuredMenuLinkClass}
                   onClick={closeMenu}
                 >
@@ -220,7 +226,7 @@ const Navbar = ({ currentUser }) => {
                   </>
                 )}
 
-                {currentUser?.resultObj?.memberType === "ultrashark" && (
+                {isAdmin && (
                   <>
                     <div className={dividerClass}></div>
                     <div className={sectionLabelClass}>Admin</div>

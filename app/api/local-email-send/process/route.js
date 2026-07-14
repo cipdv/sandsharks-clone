@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { decrypt } from "@/app/lib/auth";
+import { getSession } from "@/app/lib/auth";
 import { processLocalDevelopmentEmailJobInBackground } from "@/app/lib/local-email-send-service";
 
 export async function POST(request) {
@@ -11,8 +11,7 @@ export async function POST(request) {
       );
     }
 
-    const sessionCookie = request.cookies.get("session")?.value;
-    const session = sessionCookie ? await decrypt(sessionCookie) : null;
+    const session = await getSession();
     const user = session?.resultObj;
 
     if (!user || user.memberType !== "ultrashark") {

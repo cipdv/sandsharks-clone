@@ -1,11 +1,13 @@
 // app/lib/cookieFunctions.js
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { encrypt, decrypt } from "./auth";
+
+const SESSION_COOKIE_NAME = "session";
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 
 // Set the cookie with proper attributes for cross-site requests
 export async function updateSession(request) {
-  const session = request.cookies.get("session")?.value;
+  const session = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
   // If no session exists, just continue
   if (!session) {
@@ -15,33 +17,16 @@ export async function updateSession(request) {
   // Create a response object
   const response = NextResponse.next();
 
-  try {
-    await decrypt(session);
-  } catch (error) {
-    console.error("Invalid or expired session cookie:", error);
-    response.cookies.set({
-      name: "session",
-      value: "",
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 0,
-      path: "/",
-    });
-    return response;
-  }
-
-  // Set the cookie with SameSite=None to allow cross-site requests
   // Only set Secure=true in production
   const isProduction = process.env.NODE_ENV === "production";
 
   response.cookies.set({
-    name: "session",
+    name: SESSION_COOKIE_NAME,
     value: session,
     httpOnly: true,
     secure: isProduction, // Only use secure in production
     sameSite: "lax", // Use 'lax' instead of 'strict' to allow links from emails
-    maxAge: 60 * 60 * 24 * 7, // 1 week
+    maxAge: SESSION_MAX_AGE_SECONDS,
     path: "/",
   });
 
@@ -49,18 +34,17 @@ export async function updateSession(request) {
 }
 
 // Function to set a session cookie
-export async function setSessionCookie(data) {
-  const encryptedData = await encrypt(data);
+export async function setSessionCookie(token) {
   const isProduction = process.env.NODE_ENV === "production";
 
   const cookieStore = await cookies();
   cookieStore.set({
-    name: "session",
-    value: encryptedData,
+    name: SESSION_COOKIE_NAME,
+    value: token,
     httpOnly: true,
     secure: isProduction, // Only use secure in production
     sameSite: "lax", // Use 'lax' instead of 'strict'
-    maxAge: 60 * 60 * 24 * 7, // 1 week
+    maxAge: SESSION_MAX_AGE_SECONDS,
     path: "/",
   });
 }
@@ -68,11 +52,8 @@ export async function setSessionCookie(data) {
 // Function to delete the session cookie
 export async function deleteSessionCookie() {
   const cookieStore = await cookies();
-  cookieStore.delete("session");
+  cookieStore.delete(SESSION_COOKIE_NAME);
 }
-
-// Export decrypt for use in other files
-export { decrypt };
 
 // "use server";
 

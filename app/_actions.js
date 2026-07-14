@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
-import { getSession, encrypt } from "@/app/lib/auth";
+import { createSessionForMember, getSession } from "@/app/lib/auth";
 import Stripe from "stripe";
 import {
   chunkForResendBatch,
@@ -37,6 +37,171 @@ import {
   MemberUpdateFormSchema,
 } from "@/app/schemas/memberSchema";
 import { PostFormSchema } from "@/app/schemas/postFormSchema";
+
+let surveyTablesPromise;
+
+const DEFAULT_SURVEY_QUESTIONS = [
+  {
+    id: "feedback",
+    label:
+      "Do you have any feedback from this season or ideas of how we can make next season even better?",
+    type: "textarea",
+    required: false,
+    options: [],
+  },
+  {
+    id: "preferred-play-days",
+    label: "Which days would you want to play next year?",
+    type: "checkbox",
+    required: false,
+    options: ["Friday evenings", "Saturdays", "Sundays"],
+  },
+  {
+    id: "merchandise",
+    label: "Would you be interested in purchasing Sandsharks merchandise?",
+    type: "checkbox",
+    required: false,
+    options: ["Hat", "Tank top", "T-shirt", "Other"],
+  },
+];
+
+function normalizeSurveyQuestions(rawQuestions) {
+  if (!Array.isArray(rawQuestions)) {
+    return [];
+  }
+
+  return rawQuestions
+    .map((question, index) => {
+      const label = String(question?.label || "").trim();
+      const supportedTypes = ["text", "textarea", "radio", "checkbox", "select"];
+      const type = supportedTypes.includes(question?.type)
+        ? question.type
+        : "text";
+
+      if (!label) {
+        return null;
+      }
+
+      const idSource = String(question?.id || label)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const id = idSource || `question-${index + 1}`;
+      const options = Array.isArray(question?.options)
+        ? question.options
+            .map((option) => String(option || "").trim())
+            .filter(Boolean)
+        : [];
+
+      return {
+        id,
+        label,
+        type,
+        required: Boolean(question?.required),
+        options: ["radio", "checkbox", "select"].includes(type) ? options : [],
+      };
+    })
+    .filter(Boolean);
+}
+
+async function ensureSurveyTables() {
+  if (!surveyTablesPromise) {
+    surveyTablesPromise = (async () => {
+      await sql`
+        CREATE TABLE IF NOT EXISTS survey_definitions (
+          id SERIAL PRIMARY KEY,
+          slug TEXT NOT NULL UNIQUE,
+          title TEXT NOT NULL,
+          description TEXT,
+          is_visible BOOLEAN NOT NULL DEFAULT FALSE,
+          questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS survey_responses (
+          id SERIAL PRIMARY KEY,
+          survey_id INTEGER REFERENCES survey_definitions(id) ON DELETE SET NULL,
+          member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+          member_email TEXT NOT NULL,
+          member_first_name TEXT,
+          member_last_name TEXT,
+          answers JSONB NOT NULL,
+          survey_snapshot JSONB NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        ALTER TABLE survey_responses
+        ADD COLUMN IF NOT EXISTS survey_id INTEGER REFERENCES survey_definitions(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+        ADD COLUMN IF NOT EXISTS member_email TEXT,
+        ADD COLUMN IF NOT EXISTS member_first_name TEXT,
+        ADD COLUMN IF NOT EXISTS member_last_name TEXT,
+        ADD COLUMN IF NOT EXISTS answers JSONB,
+        ADD COLUMN IF NOT EXISTS survey_snapshot JSONB,
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      `;
+
+      await sql`
+        DO $$
+        DECLARE legacy_column record;
+        BEGIN
+          FOR legacy_column IN
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'survey_responses'
+              AND is_nullable = 'NO'
+              AND column_name NOT IN (
+                'id',
+                'member_email',
+                'answers',
+                'survey_snapshot',
+                'created_at'
+              )
+          LOOP
+            EXECUTE format(
+              'ALTER TABLE survey_responses ALTER COLUMN %I DROP NOT NULL',
+              legacy_column.column_name
+            );
+          END LOOP;
+        END $$;
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_survey_responses_survey_id
+        ON survey_responses(survey_id)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_survey_responses_member_id
+        ON survey_responses(member_id)
+      `;
+
+      await sql`
+        INSERT INTO survey_definitions (slug, title, description, is_visible, questions)
+        VALUES (
+          'current',
+          'Season Survey',
+          'Share your feedback with Sandsharks.',
+          FALSE,
+          ${JSON.stringify(DEFAULT_SURVEY_QUESTIONS)}::jsonb
+        )
+        ON CONFLICT (slug) DO NOTHING
+      `;
+    })().catch((error) => {
+      surveyTablesPromise = null;
+      throw error;
+    });
+  }
+
+  await surveyTablesPromise;
+}
 
 ///////////////////////////////////////////////
 //-----------------MEMBERS-------------------//
@@ -494,37 +659,7 @@ export async function registerNewMember(prevState, formData) {
       // Continue with registration even if email fails
     }
 
-    // Create session object
-    const resultObj = {
-      id: memberData.id,
-      _id: memberData.id.toString(),
-      firstName: memberData.first_name,
-      lastName: memberData.last_name,
-      email: memberData.email,
-      memberType: memberData.member_type,
-      pronouns: memberData.pronouns,
-      createdAt: memberData.created_at,
-      profilePic: memberData.profile_pic_url
-        ? {
-            url: memberData.profile_pic_url,
-            status: memberData.profile_pic_status,
-          }
-        : null,
-      instagramHandle: memberData.instagram_handle,
-    };
-
-    // Create the session
-    const expires = new Date(Date.now() + 10 * 60 * 1000);
-    const session = await encrypt({ resultObj, expires });
-
-    // Save the session in a cookie
-    const cookieStore = await cookies();
-    cookieStore.set("session", session, {
-      expires,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    await createSessionForMember(memberData.id);
   } catch (error) {
     console.error("Registration error:", error);
     return {
@@ -1514,95 +1649,271 @@ export async function confirmWaiver(formData) {
 //   }
 // }
 
-export async function submitSurvey(prevState, formData) {
+export async function getCurrentSurvey() {
+  await ensureSurveyTables();
+
+  const result = await sql`
+    SELECT id, title, description, is_visible, questions, updated_at
+    FROM survey_definitions
+    WHERE slug = 'current'
+    LIMIT 1
+  `;
+
+  return result.rows[0] || null;
+}
+
+export async function getVisibleSurvey() {
+  const survey = await getCurrentSurvey();
+
+  if (!survey?.is_visible) {
+    return null;
+  }
+
+  return survey;
+}
+
+export async function getSurveyResults() {
+  const session = await getSession();
+  const user = session?.resultObj;
+
+  if (!user || user.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be an ultrashark to view survey results.",
+      survey: null,
+      responses: [],
+    };
+  }
+
   try {
-    const email = formData.get("email").toLowerCase().trim();
+    await ensureSurveyTables();
 
-    // Check if the email exists in the members table
-    const memberResult = await sql`
-      SELECT id, first_name, last_name 
-      FROM members 
-      WHERE email = ${email}
-    `;
+    const survey = await getCurrentSurvey();
 
-    if (memberResult.rows.length === 0) {
+    if (!survey) {
       return {
-        success: false,
-        message:
-          "This email address isn't registered at sandsharks.ca, please check the spelling.",
+        success: true,
+        survey: null,
+        responses: [],
       };
     }
 
-    const member = memberResult.rows[0];
+    const result = await sql`
+      SELECT
+        id,
+        survey_id,
+        member_id,
+        member_email,
+        member_first_name,
+        member_last_name,
+        answers,
+        survey_snapshot,
+        created_at
+      FROM survey_responses
+      WHERE survey_id = ${survey.id}
+      ORDER BY created_at DESC
+    `;
 
-    // Extract form data
-    const feedback = formData.get("feedback") || "";
-    const fridayEvenings = formData.get("fridayEvenings") === "true";
-    const saturdays = formData.get("saturdays") === "true";
-    const saturdayStartTime = saturdays
-      ? formData.get("saturdayStartTime")
-      : null;
-    const saturdayEndTime = saturdays ? formData.get("saturdayEndTime") : null;
-    const sundays = formData.get("sundays") === "true";
-    const sundayStartTime = sundays ? formData.get("sundayStartTime") : null;
-    const sundayEndTime = sundays ? formData.get("sundayEndTime") : null;
+    return {
+      success: true,
+      survey,
+      responses: result.rows.map((row) => ({
+        id: row.id,
+        surveyId: row.survey_id,
+        memberId: row.member_id,
+        memberEmail: row.member_email,
+        memberFirstName: row.member_first_name,
+        memberLastName: row.member_last_name,
+        answers: row.answers || {},
+        surveySnapshot: row.survey_snapshot || null,
+        createdAt: row.created_at,
+      })),
+    };
+  } catch (error) {
+    console.error("Error fetching survey results:", error);
+    return {
+      success: false,
+      message: "There was an error loading survey results.",
+      survey: null,
+      responses: [],
+    };
+  }
+}
 
-    // Merchandise preferences
-    const merchandiseHat = formData.get("merchandise.hat") === "true";
-    const merchandiseTankTop = formData.get("merchandise.tankTop") === "true";
-    const merchandiseTShirt = formData.get("merchandise.tShirt") === "true";
-    const merchandiseOther = formData.get("merchandise.other") === "true";
-    const merchandiseOtherIdea = merchandiseOther
-      ? formData.get("merchandise.otherIdea") || ""
-      : "";
+export async function saveSurveySettings(prevState, formData) {
+  const session = await getSession();
+  const user = session?.resultObj;
 
-    // Insert survey response
+  if (!user || user.memberType !== "ultrashark") {
+    return {
+      success: false,
+      message: "You must be an ultrashark to edit surveys.",
+    };
+  }
+
+  const title = String(formData.get("title") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const isVisible = formData.get("isVisible") === "on";
+  const questionsJson = String(formData.get("questionsJson") || "[]");
+
+  if (!title) {
+    return { success: false, message: "Please enter a survey title." };
+  }
+
+  let parsedQuestions;
+  try {
+    parsedQuestions = JSON.parse(questionsJson);
+  } catch (error) {
+    return {
+      success: false,
+      message: "The survey questions could not be saved. Please try again.",
+    };
+  }
+
+  const questions = normalizeSurveyQuestions(parsedQuestions);
+  if (questions.length === 0) {
+    return {
+      success: false,
+      message: "Please add at least one survey question.",
+    };
+  }
+
+  const optionQuestionWithoutOptions = questions.find(
+    (question) =>
+      ["radio", "checkbox", "select"].includes(question.type) &&
+      question.options.length === 0
+  );
+
+  if (optionQuestionWithoutOptions) {
+    return {
+      success: false,
+      message: "Multiple choice questions need at least one option.",
+    };
+  }
+
+  try {
+    await ensureSurveyTables();
+
+    await sql`
+      INSERT INTO survey_definitions (
+        slug,
+        title,
+        description,
+        is_visible,
+        questions,
+        updated_at
+      )
+      VALUES (
+        'current',
+        ${title},
+        ${description},
+        ${isVisible},
+        ${JSON.stringify(questions)}::jsonb,
+        NOW()
+      )
+      ON CONFLICT (slug) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        is_visible = EXCLUDED.is_visible,
+        questions = EXCLUDED.questions,
+        updated_at = NOW()
+    `;
+
+    revalidatePath("/survey");
+    revalidatePath("/dashboard/ultrashark/surveys");
+
+    return {
+      success: true,
+      message: "Survey settings saved.",
+    };
+  } catch (error) {
+    console.error("Error saving survey settings:", error);
+    return {
+      success: false,
+      message: "There was an error saving the survey settings.",
+    };
+  }
+}
+
+export async function submitSurvey(prevState, formData) {
+  const session = await getSession();
+  const user = session?.resultObj;
+
+  if (!user) {
+    return {
+      success: false,
+      message: "Please sign in before submitting the survey.",
+    };
+  }
+
+  try {
+    const survey = await getVisibleSurvey();
+
+    if (!survey) {
+      return {
+        success: false,
+        message: "There are no active surveys at the moment.",
+      };
+    }
+
+    const questions = normalizeSurveyQuestions(survey.questions);
+    const answers = {};
+
+    for (const question of questions) {
+      const fieldName = `answer-${question.id}`;
+      const value =
+        question.type === "checkbox"
+          ? formData.getAll(fieldName).map((item) => String(item))
+          : String(formData.get(fieldName) || "").trim();
+
+      if (
+        question.required &&
+        ((Array.isArray(value) && value.length === 0) ||
+          (!Array.isArray(value) && !value))
+      ) {
+        return {
+          success: false,
+          message: "Please answer all required questions.",
+        };
+      }
+
+      answers[question.id] = {
+        question: question.label,
+        type: question.type,
+        answer: value,
+      };
+    }
+
+    const snapshot = {
+      id: survey.id,
+      title: survey.title,
+      description: survey.description,
+      questions,
+    };
+
     await sql`
       INSERT INTO survey_responses (
+        survey_id,
         member_id,
-        first_name,
-        last_name,
-        email,
-        feedback,
-        friday_evenings,
-        saturdays,
-        saturday_start_time,
-        saturday_end_time,
-        sundays,
-        sunday_start_time,
-        sunday_end_time,
-        merchandise_hat,
-        merchandise_tank_top,
-        merchandise_t_shirt,
-        merchandise_other,
-        merchandise_other_idea,
-        created_at
+        member_email,
+        member_first_name,
+        member_last_name,
+        answers,
+        survey_snapshot
       ) VALUES (
-        ${member.id},
-        ${member.first_name},
-        ${member.last_name},
-        ${email},
-        ${feedback},
-        ${fridayEvenings},
-        ${saturdays},
-        ${saturdayStartTime},
-        ${saturdayEndTime},
-        ${sundays},
-        ${sundayStartTime},
-        ${sundayEndTime},
-        ${merchandiseHat},
-        ${merchandiseTankTop},
-        ${merchandiseTShirt},
-        ${merchandiseOther},
-        ${merchandiseOtherIdea},
-        ${new Date()}
+        ${survey.id},
+        ${user.id},
+        ${user.email},
+        ${user.firstName},
+        ${user.lastName},
+        ${JSON.stringify(answers)}::jsonb,
+        ${JSON.stringify(snapshot)}::jsonb
       )
     `;
 
     return {
       success: true,
-      message:
-        "Thank you for your feedback! Your survey response has been submitted successfully.",
+      message: "Thank you. Your survey response has been submitted.",
     };
   } catch (error) {
     console.error("Error submitting survey:", error);

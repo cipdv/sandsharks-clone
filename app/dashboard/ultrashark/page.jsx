@@ -12,6 +12,7 @@ import UltraPostsEditable from "@/components/ultra-posts-editable";
 import EmailBlast from "@/components/EmailBlast";
 import VolunteerRequestsAdmin from "@/components/VolunteerRequestsAdmin";
 import DashboardSection from "@/components/DashboardSection";
+import Link from "next/link";
 
 export default async function AdminDashboard() {
   const playDays = await getPlayDays();
@@ -26,6 +27,28 @@ export default async function AdminDashboard() {
       <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
 
       <div className="grid grid-cols-1 gap-6">
+        <DashboardSection title="Surveys" defaultOpen={false}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-gray-700">
+              Edit the current member survey and choose whether it is visible.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dashboard/ultrashark/surveys"
+                className="inline-flex justify-center rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700"
+              >
+                Manage Survey
+              </Link>
+              <Link
+                href="/dashboard/ultrashark/surveys/results"
+                className="inline-flex justify-center rounded-md border border-gray-300 px-4 py-2 font-medium hover:bg-gray-50"
+              >
+                View Results
+              </Link>
+            </div>
+          </div>
+        </DashboardSection>
+
         <DashboardSection title="Volunteer Requests" defaultOpen={false}>
           {volunteerRequestsResult.success ? (
             <VolunteerRequestsAdmin
