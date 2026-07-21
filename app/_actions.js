@@ -39,6 +39,7 @@ import {
 import { PostFormSchema } from "@/app/schemas/postFormSchema";
 
 let surveyTablesPromise;
+let expenseTablesPromise;
 
 const DEFAULT_SURVEY_QUESTIONS = [
   {
@@ -201,6 +202,76 @@ async function ensureSurveyTables() {
   }
 
   await surveyTablesPromise;
+}
+
+const EXPENSE_CATEGORIES = [
+  "permits",
+  "insurance",
+  "storage",
+  "equipment repairs",
+  "new equipment",
+  "bike maintenance",
+  "food & drinks",
+  "website costs",
+  "other",
+];
+
+async function ensureExpenseTables() {
+  if (!expenseTablesPromise) {
+    expenseTablesPromise = (async () => {
+      await sql`
+        CREATE TABLE IF NOT EXISTS expenses (
+          id SERIAL PRIMARY KEY,
+          category TEXT NOT NULL,
+          amount NUMERIC(10, 2) NOT NULL,
+          description TEXT,
+          vendor TEXT,
+          expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+          created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_expenses_expense_date
+        ON expenses(expense_date)
+      `;
+    })().catch((error) => {
+      expenseTablesPromise = null;
+      throw error;
+    });
+  }
+
+  return expenseTablesPromise;
+}
+
+function normalizeExpenseCategory(category) {
+  const normalizedCategory = String(category || "").trim().toLowerCase();
+  return EXPENSE_CATEGORIES.includes(normalizedCategory)
+    ? normalizedCategory
+    : "other";
+}
+
+function parseExpenseAmount(amount) {
+  const parsedAmount = Number.parseFloat(String(amount || "").trim());
+
+  if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+    return null;
+  }
+
+  return Math.round(parsedAmount * 100) / 100;
+}
+
+async function requireUltrashark() {
+  const session = await getSession();
+  const user = session?.resultObj;
+
+  if (!user || user.memberType !== "ultrashark") {
+    return null;
+  }
+
+  return user;
 }
 
 ///////////////////////////////////////////////
@@ -4518,6 +4589,187 @@ export async function getAllDonations() {
   } catch (error) {
     console.error("Error fetching all donations:", error);
     return [];
+  }
+}
+
+export async function getAllExpenses() {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return [];
+    }
+
+    await ensureExpenseTables();
+
+    const expenses = await sql`
+      SELECT
+        e.*,
+        m.first_name AS created_by_first_name,
+        m.last_name AS created_by_last_name
+      FROM expenses e
+      LEFT JOIN members m ON e.created_by = m.id
+      ORDER BY e.expense_date DESC, e.created_at DESC
+    `;
+
+    return expenses.rows;
+  } catch (error) {
+    console.error("Error fetching expenses:", error);
+    return [];
+  }
+}
+
+export async function createExpense(formData) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an ultrashark to create expenses.",
+      };
+    }
+
+    await ensureExpenseTables();
+
+    const category = normalizeExpenseCategory(formData.get("category"));
+    const amount = parseExpenseAmount(formData.get("amount"));
+    const description = String(formData.get("description") || "").trim() || null;
+    const vendor = String(formData.get("vendor") || "").trim() || null;
+    const expenseDate =
+      String(formData.get("expenseDate") || "").trim() ||
+      new Date().toISOString().slice(0, 10);
+
+    if (amount === null) {
+      return {
+        success: false,
+        message: "Expense amount must be a valid positive number.",
+      };
+    }
+
+    await sql`
+      INSERT INTO expenses (
+        category,
+        amount,
+        description,
+        vendor,
+        expense_date,
+        created_by
+      )
+      VALUES (
+        ${category},
+        ${amount},
+        ${description},
+        ${vendor},
+        ${expenseDate},
+        ${user.id || user._id || null}
+      )
+    `;
+
+    revalidatePath("/dashboard/ultrashark/donations");
+
+    return { success: true, message: "Expense created successfully." };
+  } catch (error) {
+    console.error("Error creating expense:", error);
+    return {
+      success: false,
+      message: `Error creating expense: ${error.message}`,
+    };
+  }
+}
+
+export async function updateExpense(formData) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an ultrashark to update expenses.",
+      };
+    }
+
+    await ensureExpenseTables();
+
+    const expenseId = Number.parseInt(String(formData.get("id") || ""), 10);
+    const category = normalizeExpenseCategory(formData.get("category"));
+    const amount = parseExpenseAmount(formData.get("amount"));
+    const description = String(formData.get("description") || "").trim() || null;
+    const vendor = String(formData.get("vendor") || "").trim() || null;
+    const expenseDate = String(formData.get("expenseDate") || "").trim();
+
+    if (!Number.isInteger(expenseId)) {
+      return { success: false, message: "Expense id is required." };
+    }
+
+    if (amount === null) {
+      return {
+        success: false,
+        message: "Expense amount must be a valid positive number.",
+      };
+    }
+
+    if (!expenseDate) {
+      return { success: false, message: "Expense date is required." };
+    }
+
+    await sql`
+      UPDATE expenses
+      SET
+        category = ${category},
+        amount = ${amount},
+        description = ${description},
+        vendor = ${vendor},
+        expense_date = ${expenseDate},
+        updated_at = NOW()
+      WHERE id = ${expenseId}
+    `;
+
+    revalidatePath("/dashboard/ultrashark/donations");
+
+    return { success: true, message: "Expense updated successfully." };
+  } catch (error) {
+    console.error("Error updating expense:", error);
+    return {
+      success: false,
+      message: `Error updating expense: ${error.message}`,
+    };
+  }
+}
+
+export async function deleteExpense(expenseId) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an ultrashark to delete expenses.",
+      };
+    }
+
+    await ensureExpenseTables();
+
+    const parsedExpenseId = Number.parseInt(String(expenseId || ""), 10);
+
+    if (!Number.isInteger(parsedExpenseId)) {
+      return { success: false, message: "Expense id is required." };
+    }
+
+    await sql`
+      DELETE FROM expenses
+      WHERE id = ${parsedExpenseId}
+    `;
+
+    revalidatePath("/dashboard/ultrashark/donations");
+
+    return { success: true, message: "Expense deleted successfully." };
+  } catch (error) {
+    console.error("Error deleting expense:", error);
+    return {
+      success: false,
+      message: `Error deleting expense: ${error.message}`,
+    };
   }
 }
 

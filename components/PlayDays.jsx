@@ -113,6 +113,9 @@ const PlayDays = ({ playDays, user }) => {
             playDay.beginnerClinic?.beginnerClinicReplies?.some(
               (reply) => reply.userId === user._id
             );
+          const clinicIsFull =
+            (playDay.beginnerClinic?.beginnerClinicReplies?.length || 0) >=
+            (playDay.beginnerClinic?.maxParticipants || 10);
 
           // Check if user is the main volunteer - try multiple possible property names
           // and convert both to strings for comparison
@@ -432,18 +435,20 @@ const PlayDays = ({ playDays, user }) => {
                     </div>
 
                     {/* Clinic RSVP Button with Status Indicator */}
-                    {isPlayDayActive(playDay.date) &&
-                      (playDay.beginnerClinic.beginnerClinicReplies?.length >=
-                      (playDay.beginnerClinic.maxParticipants || 10) ? (
-                        <p className="text-sm bg-yellow-100 p-2 rounded">
-                          This clinic is full
-                        </p>
-                      ) : (
-                        <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                          {userIsAttendingClinic && (
-                            <div className="flex items-center text-green-700 bg-green-100 px-3 py-1 rounded-md">
-                              <span className="font-medium">Going</span>
-                              <span className="ml-1 text-green-600 font-bold">
+                    {isPlayDayActive(playDay.date) && (
+                      <div className="flex flex-col items-start gap-2 mt-2 sm:mt-0 sm:items-end">
+                        {clinicIsFull && (
+                          <p className="text-sm bg-yellow-100 p-2 rounded">
+                            This clinic is full
+                          </p>
+                        )}
+
+                        {(!clinicIsFull || userIsAttendingClinic) && (
+                          <div className="flex items-center gap-2">
+                           {userIsAttendingClinic && (
+                             <div className="flex items-center text-green-700 bg-green-100 px-3 py-1 rounded-md">
+                               <span className="font-medium">Going</span>
+                               <span className="ml-1 text-green-600 font-bold">
                                 ✓
                               </span>
                             </div>
@@ -453,10 +458,12 @@ const PlayDays = ({ playDays, user }) => {
                               {userIsAttendingClinic
                                 ? "I can no longer go"
                                 : "I'll be there!"}
-                            </ActionButton>
-                          </form>
-                        </div>
-                      ))}
+                             </ActionButton>
+                           </form>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Clinic Description */}

@@ -1,4 +1,4 @@
-import { getAllDonations } from "@/app/_actions";
+import { getAllDonations, getAllExpenses } from "@/app/_actions";
 import { getSession } from "@/app/lib/auth"; // Adjust based on your session management
 import AdminDonationsTable from "@/components/AdminDonationsTable";
 
@@ -16,18 +16,21 @@ export default async function AdminDonationsPage() {
     );
   }
 
-  const donations = await getAllDonations();
+  const [donations, expenses] = await Promise.all([
+    getAllDonations(),
+    getAllExpenses(),
+  ]);
   const serializedDonations = JSON.parse(JSON.stringify(donations));
+  const serializedExpenses = JSON.parse(JSON.stringify(expenses));
 
   return (
     <div className="container mx-auto py-6 px-4">
       <h1 className="text-2xl font-bold mb-6">All Donations</h1>
 
-      {donations.length === 0 ? (
-        <p className="text-gray-600">No donations have been made yet.</p>
-      ) : (
-        <AdminDonationsTable donations={serializedDonations} />
-      )}
+      <AdminDonationsTable
+        donations={serializedDonations}
+        expenses={serializedExpenses}
+      />
     </div>
   );
 }
