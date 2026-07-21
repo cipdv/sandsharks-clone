@@ -96,6 +96,27 @@ export default function AdminDonationsTable({
     [expenses, selectedYear],
   );
 
+  const expensesByCategory = useMemo(
+    () =>
+      EXPENSE_CATEGORIES.map((category) => {
+        const categoryExpenses = filteredExpenses.filter(
+          (expense) => (expense.category || "other") === category,
+        );
+        const categoryTotal = categoryExpenses.reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0,
+        );
+
+        return {
+          category,
+          expenses: categoryExpenses,
+          total: categoryTotal,
+          count: categoryExpenses.length,
+        };
+      }).filter((categoryGroup) => categoryGroup.count > 0),
+    [filteredExpenses],
+  );
+
   const totalDonations = filteredDonations.reduce(
     (sum, donation) => sum + Number(donation.amount || 0),
     0,
@@ -373,9 +394,6 @@ export default function AdminDonationsTable({
                     Date
                   </th>
                   <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Category
-                  </th>
-                  <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
                     Vendor
                   </th>
                   <th className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
@@ -389,44 +407,58 @@ export default function AdminDonationsTable({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredExpenses.map((expense) => (
-                  <tr key={expense.id}>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
-                      {new Date(expense.expense_date).toLocaleDateString()}
+              {expensesByCategory.map((categoryGroup) => (
+                <tbody
+                  key={categoryGroup.category}
+                  className="divide-y divide-gray-200"
+                >
+                  <tr>
+                    <td className="px-3 py-3 text-sm font-bold text-gray-900">
+                      {formatCategory(categoryGroup.category)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
-                      {formatCategory(expense.category)}
+                    <td className="whitespace-nowrap px-3 py-3 text-sm font-bold text-gray-900">
+                      {formatCurrency(categoryGroup.total)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
-                      {expense.vendor || "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm font-semibold text-gray-900">
-                      {formatCurrency(expense.amount)}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-900">
-                      {expense.description || "-"}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(expense)}
-                        className="mr-2 rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(expense.id)}
-                        disabled={isPending}
-                        className="rounded-md border border-red-300 px-3 py-1.5 font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-3 py-3 text-sm text-gray-600" colSpan={3}>
+                      {categoryGroup.count}{" "}
+                      {categoryGroup.count === 1 ? "expense" : "expenses"}
                     </td>
                   </tr>
-                ))}
-              </tbody>
+                  {categoryGroup.expenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
+                        {new Date(expense.expense_date).toLocaleDateString()}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
+                        {expense.vendor || "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm font-semibold text-gray-900">
+                        {formatCurrency(expense.amount)}
+                      </td>
+                      <td className="px-3 py-4 text-sm text-gray-900">
+                        {expense.description || "-"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(expense)}
+                          className="mr-2 rounded-md border border-gray-300 px-3 py-1.5 font-medium text-gray-700 hover:bg-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(expense.id)}
+                          disabled={isPending}
+                          className="rounded-md border border-red-300 px-3 py-1.5 font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              ))}
             </table>
           </div>
         )}
