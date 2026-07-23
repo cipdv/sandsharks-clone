@@ -6,6 +6,7 @@ const SESSION_REFRESH_THRESHOLD_DAYS = 15;
 const SESSION_COOKIE_NAME = "session";
 
 let memberSessionsTablePromise;
+let memberActivityColumnsPromise;
 
 function hashSessionToken(token) {
   return createHash("sha256").update(token).digest("hex");
@@ -39,9 +40,38 @@ export function getSessionCookieName() {
   return SESSION_COOKIE_NAME;
 }
 
+export async function ensureMemberActivityColumns() {
+  if (!memberActivityColumnsPromise) {
+    memberActivityColumnsPromise = (async () => {
+      await sql`
+        ALTER TABLE members
+        ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_members_last_login_at
+        ON members(last_login_at)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_members_last_seen_at
+        ON members(last_seen_at)
+      `;
+    })().catch((error) => {
+      memberActivityColumnsPromise = null;
+      throw error;
+    });
+  }
+
+  await memberActivityColumnsPromise;
+}
+
 export async function ensureMemberSessionsTable() {
   if (!memberSessionsTablePromise) {
     memberSessionsTablePromise = (async () => {
+      await ensureMemberActivityColumns();
+
       await sql`
         CREATE TABLE IF NOT EXISTS member_sessions (
           token_hash TEXT PRIMARY KEY,
@@ -97,10 +127,19 @@ export async function createMemberSession(memberId) {
   const token = randomBytes(32).toString("base64url");
   const tokenHash = hashSessionToken(token);
   const expires = sessionExpiresAt();
+  const now = new Date();
 
   await sql`
     INSERT INTO member_sessions (token_hash, member_id, expires_at)
     VALUES (${tokenHash}, ${memberId}, ${expires})
+  `;
+
+  await sql`
+    UPDATE members
+    SET
+      last_login_at = ${now},
+      last_seen_at = ${now}
+    WHERE id = ${memberId}
   `;
 
   return { token, expires };
@@ -124,6 +163,7 @@ export async function getMemberSession(token) {
   const result = await sql`
     SELECT
       s.expires_at,
+      m.last_seen_at,
       m.id,
       m.first_name,
       m.last_name,
@@ -166,6 +206,21 @@ export async function getMemberSession(token) {
       UPDATE member_sessions
       SET last_seen_at = NOW()
       WHERE token_hash = ${hashSessionToken(token)}
+    `;
+  }
+
+  const memberLastSeenAt = row.last_seen_at
+    ? new Date(row.last_seen_at)
+    : null;
+  const memberSeenRefreshThreshold = new Date(
+    Date.now() - 24 * 60 * 60 * 1000
+  );
+
+  if (!memberLastSeenAt || memberLastSeenAt < memberSeenRefreshThreshold) {
+    await sql`
+      UPDATE members
+      SET last_seen_at = NOW()
+      WHERE id = ${row.id}
     `;
   }
 

@@ -150,6 +150,13 @@ const Navbar = ({ currentUser }) => {
                 >
                   Dashboard
                 </Link>
+                <Link
+                  href="/events"
+                  className={menuLinkClass}
+                  onClick={closeMenu}
+                >
+                  Events
+                </Link>
                 {/* <Link
                   href="/dashboard/member/league-history"
                   className={menuLinkClass}
@@ -296,6 +303,13 @@ const Navbar = ({ currentUser }) => {
                   onClick={closeMenu}
                 >
                   Rules
+                </Link>
+                <Link
+                  href="/events"
+                  className={menuLinkClass}
+                  onClick={closeMenu}
+                >
+                  Events
                 </Link>
                 <Link
                   href="/contact"

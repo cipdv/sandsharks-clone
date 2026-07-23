@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import SponsorForm from "./SponsorForm";
 import SponsorsList from "./SponsorsList";
 import { approveSponsorRequest, rejectSponsorRequest } from "@/app/_actions";
 
 const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
-  // State for existing functionality
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-
-  // State for new functionality
-  const [activeTab, setActiveTab] = useState("sponsors");
+  const [pendingRequests, setPendingRequests] = useState(requests);
   const [message, setMessage] = useState(null);
   const [rejectionData, setRejectionData] = useState({
     open: false,
@@ -57,31 +56,10 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
           type: "success",
           text: result.message || "Sponsor request approved successfully",
         });
-
-        // Remove the approved request from the list
-        const requestElement = document.getElementById(
-          `sponsor-request-${requestId}`
+        setPendingRequests((currentRequests) =>
+          currentRequests.filter((request) => request.id !== requestId)
         );
-        if (requestElement) {
-          requestElement.classList.add("opacity-0");
-          setTimeout(() => {
-            requestElement.remove();
-
-            // Check if there are no more requests
-            const remainingRequests = document.querySelectorAll(
-              '[id^="sponsor-request-"]'
-            );
-            if (remainingRequests.length === 0) {
-              const requestsContainer = document.getElementById(
-                "sponsor-requests-container"
-              );
-              if (requestsContainer) {
-                requestsContainer.innerHTML =
-                  '<div class="bg-blue-50 p-4 rounded-md"><p>No pending sponsorship requests at this time.</p></div>';
-              }
-            }
-          }, 500);
-        }
+        router.refresh();
       } else {
         setMessage({
           type: "error",
@@ -115,31 +93,11 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
         // Close the rejection form
         setRejectionData({ open: false, requestId: null });
 
-        // Remove the rejected request from the list
         const requestId = formData.get("requestId");
-        const requestElement = document.getElementById(
-          `sponsor-request-${requestId}`
+        setPendingRequests((currentRequests) =>
+          currentRequests.filter((request) => request.id !== requestId)
         );
-        if (requestElement) {
-          requestElement.classList.add("opacity-0");
-          setTimeout(() => {
-            requestElement.remove();
-
-            // Check if there are no more requests
-            const remainingRequests = document.querySelectorAll(
-              '[id^="sponsor-request-"]'
-            );
-            if (remainingRequests.length === 0) {
-              const requestsContainer = document.getElementById(
-                "sponsor-requests-container"
-              );
-              if (requestsContainer) {
-                requestsContainer.innerHTML =
-                  '<div class="bg-blue-50 p-4 rounded-md"><p>No pending sponsorship requests at this time.</p></div>';
-              }
-            }
-          }, 500);
-        }
+        router.refresh();
       } else {
         setMessage({
           type: "error",
@@ -157,7 +115,7 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
 
   // Render sponsor requests section
   const renderSponsorRequests = () => {
-    if (!requests || requests.length === 0) {
+    if (!pendingRequests || pendingRequests.length === 0) {
       return (
         <div className="bg-blue-50 p-4 rounded-md">
           <p>No pending sponsorship requests at this time.</p>
@@ -180,7 +138,7 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
         )}
 
         <div id="sponsor-requests-container" className="space-y-6">
-          {requests.map((request) => (
+          {pendingRequests.map((request) => (
             <div
               key={request.id}
               id={`sponsor-request-${request.id}`}
@@ -355,130 +313,62 @@ const SponsorsManagement = ({ sponsors = [], members = [], requests = [] }) => {
   };
 
   return (
-    <div>
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-6">
-        <button
-          className={`py-2 px-4 font-medium text-sm ${
-            activeTab === "sponsors"
-              ? "border-b-2 border-blue-500 text-blue-600"
-              : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
-          }`}
-          onClick={() => setActiveTab("sponsors")}
-        >
-          Current Sponsors
-        </button>
-        <button
-          className={`py-2 px-4 font-medium text-sm ${
-            activeTab === "requests"
-              ? "border-b-2 border-blue-500 text-blue-600"
-              : "text-gray-500 hover:text-gray-700 hover:border-gray-300"
-          }`}
-          onClick={() => setActiveTab("requests")}
-        >
-          Sponsorship Requests
-          {requests && requests.length > 0 && (
-            <span className="ml-2 bg-red-100 text-red-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-              {requests.length}
+    <div className="space-y-8">
+      <section className="rounded-lg border border-gray-200 bg-white/80 p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold">Sponsorship Requests</h2>
+          {pendingRequests.length > 0 && (
+            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+              {pendingRequests.length} pending
             </span>
           )}
-        </button>
-      </div>
+        </div>
+        {renderSponsorRequests()}
+      </section>
 
-      {/* Content based on active tab */}
-      {activeTab === "sponsors" ? (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Sponsors</h2>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              {showForm ? "Cancel" : "Create New Sponsor"}
-            </button>
-          </div>
+      <section className="rounded-lg border border-gray-200 bg-white/80 p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold">Current Sponsors</h2>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+          >
+            {showForm ? "Cancel" : "Create New Sponsor"}
+          </button>
+        </div>
 
-          {showForm ? (
-            <SponsorForm
-              members={members}
-              onSuccess={handleFormSubmitSuccess}
-            />
-          ) : (
-            <>
-              {renderSponsorsSearch()}
-              {searchTerm ? (
-                filteredSponsors.length === 0 ? (
-                  <div className="bg-blue-50 p-4 rounded-md">
-                    <p>
-                      No sponsors found matching "{searchTerm}". Try a different
-                      search term.
-                    </p>
-                  </div>
-                ) : (
-                  <SponsorsList
-                    sponsors={filteredSponsors}
-                    key={refreshKey}
-                    isAdmin={true}
-                  />
-                )
+        {showForm ? (
+          <SponsorForm members={members} onSuccess={handleFormSubmitSuccess} />
+        ) : (
+          <>
+            {renderSponsorsSearch()}
+            {searchTerm ? (
+              filteredSponsors.length === 0 ? (
+                <div className="bg-blue-50 p-4 rounded-md">
+                  <p>
+                    No sponsors found matching "{searchTerm}". Try a different
+                    search term.
+                  </p>
+                </div>
               ) : (
                 <SponsorsList
-                  sponsors={sponsors}
+                  sponsors={filteredSponsors}
                   key={refreshKey}
                   isAdmin={true}
                 />
-              )}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">Sponsorship Requests</h2>
-          </div>
-          {renderSponsorRequests()}
-        </>
-      )}
+              )
+            ) : (
+              <SponsorsList
+                sponsors={sponsors}
+                key={refreshKey}
+                isAdmin={true}
+              />
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 };
 
 export default SponsorsManagement;
-
-// "use client";
-
-// import { useState } from "react";
-// import SponsorForm from "./SponsorForm";
-// import SponsorsList from "./SponsorsList";
-
-// const SponsorsManagement = ({ sponsors = [], members = [] }) => {
-//   const [showForm, setShowForm] = useState(false);
-//   const [refreshKey, setRefreshKey] = useState(0);
-
-//   const handleFormSubmitSuccess = () => {
-//     setShowForm(false);
-//     setRefreshKey((prev) => prev + 1);
-//   };
-
-//   return (
-//     <div>
-//       <div className="flex justify-between items-center mb-4">
-//         <h2 className="text-2xl font-bold">Sponsors</h2>
-//         <button
-//           onClick={() => setShowForm(!showForm)}
-//           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-//         >
-//           {showForm ? "Cancel" : "Create New Sponsor"}
-//         </button>
-//       </div>
-
-//       {showForm ? (
-//         <SponsorForm members={members} onSuccess={handleFormSubmitSuccess} />
-//       ) : (
-//         <SponsorsList sponsors={sponsors} key={refreshKey} isAdmin={true} />
-//       )}
-//     </div>
-//   );
-// };
-
-// export default SponsorsManagement;

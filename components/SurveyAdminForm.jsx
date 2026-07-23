@@ -92,6 +92,9 @@ export default function SurveyAdminForm({ survey }) {
 
   return (
     <form action={formAction} className="space-y-6">
+      {survey?.id ? (
+        <input type="hidden" name="surveyId" value={survey.id} />
+      ) : null}
       <input type="hidden" name="questionsJson" value={questionsJson} />
 
       <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">

@@ -28,6 +28,7 @@ export async function middleware(request) {
     "/contact",
     "/password-reset",
     "/league-history",
+    "/events",
     "/donations",
     "/rules",
     "/email-action",
@@ -43,6 +44,7 @@ export async function middleware(request) {
 
   const allowedLoggedInPaths = [
     "/email-action",
+    "/events",
     "/contact",
     "/delete-account",
     "/dashboard/member",

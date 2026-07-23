@@ -9,7 +9,10 @@ export default function USPendingMembers({ members }) {
   const handleApprove = async (memberId) => {
     setPendingActions((prev) => ({ ...prev, [memberId]: "approving" }));
     try {
-      await approveMember(memberId);
+      const result = await approveMember(memberId);
+      if (!result?.success) {
+        throw new Error(result?.message || "Failed to approve member");
+      }
       setPendingActions((prev) => ({ ...prev, [memberId]: "approved" }));
     } catch (error) {
       console.error("Error approving member:", error);
@@ -20,7 +23,10 @@ export default function USPendingMembers({ members }) {
   const handleReject = async (memberId) => {
     setPendingActions((prev) => ({ ...prev, [memberId]: "rejecting" }));
     try {
-      await rejectMember(memberId);
+      const result = await rejectMember(memberId);
+      if (!result?.success) {
+        throw new Error(result?.message || "Failed to reject member");
+      }
       setPendingActions((prev) => ({ ...prev, [memberId]: "rejected" }));
     } catch (error) {
       console.error("Error rejecting member:", error);

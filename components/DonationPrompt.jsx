@@ -92,9 +92,11 @@ export default function DonationPrompt({ user }) {
                 Sandsharks!
               </p>
               <p>
-                Sandsharks is completely volunteer run and we need donations
-                from members like you to help pay for court rentals, replacing
-                worn out equipment, equipment storage, and more.
+                Sandsharks is run entirely with volunteers. No profit is being
+                made by anyone. Our costs are covered entirely by donations from
+                members like you to help pay for court rentals, insurance,
+                replacing worn out equipment, equipment storage, website fees
+                and more.
               </p>
               <p>
                 All donations are pay-what-you-can, with a suggested donation

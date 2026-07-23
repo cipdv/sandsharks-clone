@@ -2,6 +2,7 @@ import { sql } from "@vercel/postgres";
 import { getSession } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 import SendAnnouncementForm from "./send-announcement-form";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 
 export default async function SendAnnouncementPage() {
   const session = await getSession();
@@ -23,10 +24,8 @@ export default async function SendAnnouncementPage() {
   const playDays = playDaysResult.rows;
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Send Play Day Announcement</h1>
-
+    <UltrasharkPageShell title="Send Play Day Announcement">
+      <div className="mx-auto max-w-2xl">
         {playDays.length === 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
             <p className="text-yellow-800">
@@ -38,6 +37,6 @@ export default async function SendAnnouncementPage() {
           <SendAnnouncementForm playDays={playDays} />
         )}
       </div>
-    </div>
+    </UltrasharkPageShell>
   );
 }

@@ -274,12 +274,12 @@ export default function EmailBlast({
   }
 
   return (
-    <div>
-      {showHeading && <h2 className="text-2xl font-bold mb-2">Email Blast</h2>}
-      <p className="text-sm text-gray-600 mb-6">
-        Uses one shared Sandsharks email design with the site logo, play day RSVP
-        sections, and unsubscribe links included automatically.
-      </p>
+    <div className="rounded-lg border border-gray-200 bg-white/80 p-6 shadow-sm">
+      {showHeading && (
+        <h2 className="mb-6 text-2xl font-bold">
+          Send emails using Resend email service
+        </h2>
+      )}
 
       <form
         id="email-blast-form"

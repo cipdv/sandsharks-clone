@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { deleteAccount } from "@/app/_actions";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 // Submit button component that uses the form's pending state
 function SubmitButton({ isConfirmed }) {
@@ -151,12 +152,21 @@ export default function DeleteAccountForm({ user, standalone = true }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              <span className="text-xs text-gray-600">
-                {showPassword ? "Hide" : "Show"}
-              </span>
+              <Image
+                src={
+                  showPassword
+                    ? "/images/icons8-hide-16.png"
+                    : "/images/icons8-eye-16.png"
+                }
+                alt={showPassword ? "Hide password" : "Show password"}
+                width={16}
+                height={16}
+                unoptimized
+              />
             </button>
           </div>
         </div>

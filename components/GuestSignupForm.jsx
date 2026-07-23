@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { registerGuestOnly } from "@/app/_actions";
+import { registerGuestForEvent, registerGuestOnly } from "@/app/_actions";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import {
@@ -18,34 +18,58 @@ const stripePromise = loadStripe(
 );
 
 // Main form component that handles both registration and donation
-function GuestSignupFormContent() {
+function GuestSignupFormContent({
+  eventId,
+  eventTitle,
+  eventDateLabel,
+  eventTimeLabel,
+  compact = false,
+}) {
   const router = useRouter();
   const stripe = useStripe();
   const elements = useElements();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [donationComplete, setDonationComplete] = useState(false);
   const [waiverAgreement, setWaiverAgreement] = useState(false);
-  const [photoConsent, setPhotoConsent] = useState(true);
   const [showFullWaiver, setShowFullWaiver] = useState(false);
   const [includeDonation, setIncludeDonation] = useState(false);
-  const [donationAmount, setDonationAmount] = useState("10");
+  const [donationAmount, setDonationAmount] = useState("20");
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
+    setRegistrationComplete(false);
+    setDonationComplete(false);
+
+    if (!waiverAgreement) {
+      setError(
+        "You must consent to the waiver, code of conduct, and photo consent policies before registering.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const formData = new FormData(event.target);
+      formData.set("photoConsent", "on");
       const firstName = formData.get("firstName");
       const lastName = formData.get("lastName");
       const email = formData.get("email");
 
       console.log("Starting registration process...");
 
+      if (eventId) {
+        formData.append("eventId", eventId);
+      }
+
       // Step 1: Register the guest first
-      const registrationResult = await registerGuestOnly(null, formData);
+      const registrationResult = eventId
+        ? await registerGuestForEvent(null, formData)
+        : await registerGuestOnly(null, formData);
 
       if (!registrationResult.success) {
         setError(registrationResult.message);
@@ -105,19 +129,28 @@ function GuestSignupFormContent() {
             // Don't fail the entire process if donation recording fails
           }
 
-          // Redirect to success page with donation info
-          const params = new URLSearchParams({
-            donated: "true",
-            amount: donationAmount,
-          });
-          router.push(`/guest-signup/success?${params.toString()}`);
+          if (eventId) {
+            setDonationComplete(true);
+            setRegistrationComplete(true);
+            router.refresh();
+          } else {
+            const params = new URLSearchParams({
+              donated: "true",
+              amount: donationAmount,
+            });
+            router.push(`/guest-signup/success?${params.toString()}`);
+          }
         } else {
           setError("Payment was not completed successfully");
           return;
         }
       } else {
-        // No donation, just redirect to success page
-        router.push("/guest-signup/success");
+        if (eventId) {
+          setRegistrationComplete(true);
+          router.refresh();
+        } else {
+          router.push("/guest-signup/success");
+        }
       }
     } catch (error) {
       console.error("Form submission error:", error);
@@ -129,30 +162,57 @@ function GuestSignupFormContent() {
     }
   };
 
-  const isFormValid =
-    waiverAgreement &&
-    (!includeDonation || (stripe && elements));
+  const isFormValid = !includeDonation || (stripe && elements);
+
+  if (eventId && registrationComplete) {
+    return (
+      <div className="mt-6 rounded-md border border-green-200 bg-green-50 p-5 text-green-900">
+        <h2 className="text-xl font-bold">
+          You are registered for this event. Thank you.
+        </h2>
+        {donationComplete ? (
+          <p className="mt-2 text-sm">Thank you for your donation.</p>
+        ) : null}
+        <Link
+          href="/events"
+          className="mt-4 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Back to events
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-blue-100 p-4 rounded-md mt-6 w-full lg:w-2/5 mx-auto"
+      className={`mt-6 w-full rounded-md bg-blue-100 p-4 ${
+        compact ? "mx-0" : "mx-auto lg:w-2/5"
+      }`}
     >
-      <h1 className="text-2xl font-bold">TSVL x Sandsharks Registration</h1>
+      <h1 className="text-2xl font-bold">
+        {eventTitle ? `${eventTitle} Registration` : "TSVL x Sandsharks Registration"}
+      </h1>
       <p className="text-gray-700 mt-2 mb-4">
-        Toronto Sandsharks would like to welcome TSVL players to the beach! If
-        you've never played with Sandsharks before, we're very chill, very
-        friendly, and very welcoming to new players.
+        {eventTitle
+          ? "Register as a non-member guest for this Sandsharks event."
+          : "Toronto Sandsharks would like to welcome TSVL players to the beach! If you've never played with Sandsharks before, we're very chill, very friendly, and very welcoming to new players."}
       </p>
-      <h1 className="text-lg font-bold">June 12, 2026</h1>
-      <p className="text-gray-700 mt-2 mb-4">4-8pm</p>
-      <p className="text-gray-700 mt-2 mb-4">
-        If you'd like to become a regular member,{" "}
-        <Link href="/signup" className="text-blue-500">
-          sign up here
-        </Link>
-        .
-      </p>
+      {eventDateLabel ? (
+        <h1 className="text-lg font-bold">{eventDateLabel}</h1>
+      ) : (
+        <h1 className="text-lg font-bold">June 12, 2026</h1>
+      )}
+      <p className="text-gray-700 mt-2 mb-4">{eventTimeLabel || "4-8pm"}</p>
+      {!eventTitle ? (
+        <p className="text-gray-700 mt-2 mb-4">
+          If you'd like to become a regular member,{" "}
+          <Link href="/signup" className="text-blue-500">
+            sign up here
+          </Link>
+          .
+        </p>
+      ) : null}
       <div className="flex flex-col gap-4 glassmorphism mt-4">
         {/* Personal Information */}
         <div className="space-y-3">
@@ -210,6 +270,117 @@ function GuestSignupFormContent() {
           </div>
         </div>
 
+        <div className="p-4 bg-white rounded-md border">
+          <h3 className="text-lg font-semibold mb-2">Optional Donation</h3>
+          <p className="text-sm text-gray-600 mb-3">
+            Help support Sandsharks with a voluntary donation. All donations are
+            pay-what-you-can, with a suggested amount of $20 for this event.
+            Your contribution helps cover court rentals, equipment, and other
+            expenses.
+          </p>
+
+          <label className="flex items-center mb-3">
+            <input
+              type="checkbox"
+              id="includeDonation"
+              name="includeDonation"
+              checked={includeDonation}
+              onChange={(e) => setIncludeDonation(e.target.checked)}
+              className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm font-medium">
+              I'd like to make a donation
+            </span>
+          </label>
+
+          {includeDonation && (
+            <div className="space-y-4">
+              <div>
+                <label
+                  htmlFor="donationAmount"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Donation Amount (CAD)
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative w-32">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                      <span className="text-gray-700 text-lg font-medium">
+                        $
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      name="donationAmount"
+                      id="donationAmount"
+                      value={donationAmount}
+                      onChange={(e) => setDonationAmount(e.target.value)}
+                      min="1"
+                      step="1"
+                      className="w-full pl-8 pr-3 py-2 text-lg font-medium border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      required={includeDonation}
+                    />
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    Set your donation amount
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between bg-gray-50 p-3 border border-gray-200 rounded-t-md">
+                  <div className="flex items-center">
+                    <Lock className="h-5 w-5 text-green-600 mr-2" />
+                    <h4 className="text-lg font-medium text-gray-800">
+                      Secure Payment
+                    </h4>
+                  </div>
+                  <div className="text-sm text-gray-500">Powered by Stripe</div>
+                </div>
+
+                <div className="p-4 border border-gray-200 border-t-0 rounded-b-md bg-white">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Credit or Debit Card
+                  </label>
+                  <div className="border border-gray-300 rounded-md p-3 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+                    <CardElement
+                      options={{
+                        style: {
+                          base: {
+                            fontSize: "16px",
+                            color: "#424770",
+                            "::placeholder": { color: "#aab7c4" },
+                          },
+                        },
+                        hidePostalCode: true,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center mt-2 text-sm text-gray-500">
+                    <ShieldCheck className="h-4 w-4 text-green-600 mr-1" />
+                    <span>
+                      Your payment information is encrypted and secure
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {eventId ? (
+          <div className="p-4 bg-white rounded-md border">
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                name="wantsToVolunteer"
+                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>I&apos;d like to volunteer to help out at this event</span>
+            </label>
+          </div>
+        ) : null}
+
         {/* Waiver and Code of Conduct */}
         <div className="p-4 bg-white rounded-md border">
           <h3 className="text-lg font-semibold mb-3">
@@ -222,8 +393,7 @@ function GuestSignupFormContent() {
               to our code of conduct promoting a safe, welcoming LGBTQ+
               environment and acknowledge the inherent risks of beach
               volleyball. You also agree to our privacy policy regarding data
-              collection and use, and optionally consent to photo usage on our
-              website and social media.
+              collection and use, and consent to the photo consent policy.
             </p>
             <button
               type="button"
@@ -352,40 +522,23 @@ function GuestSignupFormContent() {
                 </h4>
                 <p className="mb-3">
                   Sometimes we take photos during Sandsharks events. Some photos
-                  may be used on our website and social media accounts. By
-                  checking the photo consent policy below, you are agreeing to
-                  allow Sandsharks to use photos that you are in for these
-                  purposes. You can revoke your consent at anytime by logging in
-                  to sandsharks.ca and updating your preferences in your
-                  profile.
+                  may be used on our website and social media accounts. Due to
+                  the nature of this being a public beach, your photo may also
+                  be taken at any time by anyone that is outside of the control
+                  of Sandsharks. By checking the photo consent policy below, you
+                  are agreeing to allow Sandsharks to use photos that you are in
+                  for these purposes, and acknowledging that Sandsharks is not
+                  responsible for photos taken by others outside of our control.
                 </p>
                 <p>
-                  If you find a photo that you are in and haven't given consent,
-                  please notify us at sandsharks.org@gmail.com so that we can
-                  remove the photo.
+                  However, this doesn't mean you cannot ask for photos of
+                  yourself to be removed from our website and social media. If
+                  you find a photo that you are in that you'd like removed from
+                  our website or social media, please notify us at
+                  sandsharks.org@gmail.com so that we can remove the photo.
                 </p>
               </div>
 
-              {/* Photo Consent Policy */}
-              <div>
-                <h4 className="font-bold text-base mb-2">
-                  Photo Consent Policy
-                </h4>
-                <p className="mb-3">
-                  Sometimes we take photos during Sandsharks events. Some photos
-                  may be used on our website and social media accounts. By
-                  checking the photo consent policy below, you are agreeing to
-                  allow Sandsharks to use photos that you are in for these
-                  purposes. You can revoke your consent at anytime by logging in
-                  to sandsharks.ca and updating your preferences in your
-                  profile.
-                </p>
-                <p>
-                  If you find a photo that you are in and haven't given consent,
-                  please notify us at sandsharks.org@gmail.com so that we can
-                  remove the photo.
-                </p>
-              </div>
             </div>
           )}
 
@@ -398,133 +551,16 @@ function GuestSignupFormContent() {
                 checked={waiverAgreement}
                 onChange={(e) => setWaiverAgreement(e.target.checked)}
                 className="h-4 w-4 mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                required
               />
               <label htmlFor="waiverAgreement" className="ml-2 block text-sm">
                 <strong>
-                  I have read and agree to the waiver and code of conduct
-                  policies.
+                  I have read and agree to the waiver, code of conduct, and
+                  photo consent policies.
                 </strong>{" "}
                 <span className="text-red-500">*</span>
               </label>
             </div>
-
-            <div className="flex items-start">
-              <input
-                type="checkbox"
-                id="photoConsent"
-                name="photoConsent"
-                checked={photoConsent}
-                onChange={(e) => setPhotoConsent(e.target.checked)}
-                className="h-4 w-4 mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="photoConsent" className="ml-2 block text-sm">
-                I agree to the photo consent policy. Photos taken during events
-                may be used on the website and social media.
-              </label>
-            </div>
           </div>
-        </div>
-
-        {/* Optional Donation */}
-        <div className="p-4 bg-white rounded-md border">
-          <h3 className="text-lg font-semibold mb-2">Optional Donation</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            Help support Sandsharks with a voluntary donation. All donations are
-            pay-what-you-can. Your contribution helps cover court rentals,
-            equipment, and other expenses.
-          </p>
-
-          <label className="flex items-center mb-3">
-            <input
-              type="checkbox"
-              id="includeDonation"
-              name="includeDonation"
-              checked={includeDonation}
-              onChange={(e) => setIncludeDonation(e.target.checked)}
-              className="mr-2 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium">
-              I'd like to make a donation
-            </span>
-          </label>
-
-          {includeDonation && (
-            <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor="donationAmount"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Donation Amount (CAD)
-                </label>
-                <div className="flex items-center gap-2">
-                  <div className="relative w-32">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                      <span className="text-gray-700 text-lg font-medium">
-                        $
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      name="donationAmount"
-                      id="donationAmount"
-                      value={donationAmount}
-                      onChange={(e) => setDonationAmount(e.target.value)}
-                      min="1"
-                      step="1"
-                      className="w-full pl-8 pr-3 py-2 text-lg font-medium border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      required={includeDonation}
-                    />
-                  </div>
-                  <span className="text-sm text-gray-500">
-                    Set your donation amount
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Form */}
-              <div className="space-y-4">
-                {/* Payment Header */}
-                <div className="flex items-center justify-between bg-gray-50 p-3 border border-gray-200 rounded-t-md">
-                  <div className="flex items-center">
-                    <Lock className="h-5 w-5 text-green-600 mr-2" />
-                    <h4 className="text-lg font-medium text-gray-800">
-                      Secure Payment
-                    </h4>
-                  </div>
-                  <div className="text-sm text-gray-500">Powered by Stripe</div>
-                </div>
-
-                {/* Card Input */}
-                <div className="p-4 border border-gray-200 border-t-0 rounded-b-md bg-white">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Credit or Debit Card
-                  </label>
-                  <div className="border border-gray-300 rounded-md p-3 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-                    <CardElement
-                      options={{
-                        style: {
-                          base: {
-                            fontSize: "16px",
-                            color: "#424770",
-                            "::placeholder": { color: "#aab7c4" },
-                          },
-                        },
-                        hidePostalCode: true,
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center mt-2 text-sm text-gray-500">
-                    <ShieldCheck className="h-4 w-4 text-green-600 mr-1" />
-                    <span>
-                      Your payment information is encrypted and secure
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Error Messages */}
@@ -579,10 +615,10 @@ function GuestSignupFormContent() {
 }
 
 // Wrapper component that provides Stripe Elements context
-const GuestSignupForm = () => {
+const GuestSignupForm = (props) => {
   return (
     <Elements stripe={stripePromise}>
-      <GuestSignupFormContent />
+      <GuestSignupFormContent {...props} />
     </Elements>
   );
 };

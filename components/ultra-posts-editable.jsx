@@ -1,10 +1,18 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { createPlayDay, updatePlayDay, deletePlayDay, cancelPlayDay } from "@/app/_actions"
 import { ActionButton } from "@/components/ActionButton"
 
 export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [], members = [] }) {
+  const router = useRouter()
+
+  const getPlayDayDate = (playDay) => {
+    if (!playDay?.date) return null
+    return new Date(`${String(playDay.date).split("T")[0]}T00:00:00`)
+  }
+
   const formatTime = (timeString) => {
     if (!timeString) return ""
     // If timeString is in HH:MM:SS format, extract just HH:MM
@@ -36,6 +44,7 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
   const [isCreating, setIsCreating] = useState(false)
   const [editingPlayDayId, setEditingPlayDayId] = useState(null)
   const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [showPastPlayDays, setShowPastPlayDays] = useState(false)
   const [formError, setFormError] = useState("")
   const [formSuccess, setFormSuccess] = useState("")
   const [isLoadingMembers, setIsLoadingMembers] = useState(false)
@@ -81,6 +90,31 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
       ),
     [sortedPlayDays, selectedYear],
   )
+  const today = useMemo(() => {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    return date
+  }, [])
+  const upcomingPlayDays = useMemo(
+    () =>
+      filteredPlayDays.filter((playDay) => {
+        const playDayDate = getPlayDayDate(playDay)
+        return !playDayDate || playDayDate >= today
+      }),
+    [filteredPlayDays, today],
+  )
+  const pastPlayDays = useMemo(
+    () =>
+      filteredPlayDays.filter((playDay) => {
+        const playDayDate = getPlayDayDate(playDay)
+        return playDayDate && playDayDate < today
+      }),
+    [filteredPlayDays, today],
+  )
+  const shouldCollapsePastPlayDays = selectedYear === currentYear
+  const visiblePlayDays = !shouldCollapsePastPlayDays || showPastPlayDays
+    ? [...upcomingPlayDays, ...pastPlayDays]
+    : upcomingPlayDays
 
   const resetForm = () => {
     setTitle("")
@@ -183,17 +217,11 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
 
       const result = await cancelPlayDay(formData)
       if (result.success) {
-        setFormSuccess("Play day cancelled successfully!")
         setIsCancelling(false)
         setCancellingPlayDayId(null)
         setCancellationReason("")
-
-        // Redirect after a short delay to show the success message
-        if (result.shouldRedirect) {
-          setTimeout(() => {
-            window.location.href = "/dashboard/ultrashark"
-          }, 1500)
-        }
+        setFormSuccess("Play day cancelled successfully!")
+        router.refresh()
       } else {
         setFormError(result.message || "Failed to cancel play day")
       }
@@ -259,16 +287,10 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
         // Create new play day
         const result = await createPlayDay(formData)
         if (result.success) {
-          setFormSuccess("Play day created successfully!")
           resetForm()
           setIsCreating(false)
-
-          // Redirect after a short delay to show the success message
-          if (result.shouldRedirect) {
-            setTimeout(() => {
-              window.location.href = "/dashboard/ultrashark"
-            }, 1500)
-          }
+          setFormSuccess("Play day created successfully!")
+          router.refresh()
         } else {
           setFormError(result.message || "Failed to create play day")
         }
@@ -277,14 +299,10 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
         formData.append("playDayId", editingPlayDayId)
         const result = await updatePlayDay(formData)
         if (result.success) {
+          setEditingPlayDayId(null)
+          resetForm()
           setFormSuccess("Play day updated successfully!")
-
-          // Redirect after a short delay to show the success message
-          if (result.shouldRedirect) {
-            setTimeout(() => {
-              window.location.href = "/dashboard/ultrashark"
-            }, 1500)
-          }
+          router.refresh()
         } else {
           setFormError(result.message || "Failed to update play day")
         }
@@ -679,7 +697,10 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
               <select
                 id="playDayYearFilter"
                 value={selectedYear}
-                onChange={(event) => setSelectedYear(event.target.value)}
+                onChange={(event) => {
+                  setSelectedYear(event.target.value)
+                  setShowPastPlayDays(false)
+                }}
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sandsharks-magenta focus:outline-none focus:ring-sandsharks-magenta sm:w-40"
               >
                 {playDayYears.map((year) => (
@@ -689,10 +710,23 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
                 ))}
               </select>
             </div>
-            <p className="text-sm text-gray-500">
-              Showing {filteredPlayDays.length} play day
-              {filteredPlayDays.length === 1 ? "" : "s"} in {selectedYear}
-            </p>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <p className="text-sm text-gray-500">
+                Showing {visiblePlayDays.length} of {filteredPlayDays.length} play day
+                {filteredPlayDays.length === 1 ? "" : "s"} in {selectedYear}
+              </p>
+              {shouldCollapsePastPlayDays && pastPlayDays.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPastPlayDays((current) => !current)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {showPastPlayDays
+                    ? "Hide past play dates"
+                    : `Show past play dates (${pastPlayDays.length})`}
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
           <div className="min-w-full">
@@ -727,14 +761,18 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPlayDays.length === 0 ? (
+                {visiblePlayDays.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
-                      No play days found for {selectedYear}.
+                      {filteredPlayDays.length === 0
+                        ? `No play days found for ${selectedYear}.`
+                        : shouldCollapsePastPlayDays
+                          ? `No upcoming play dates found for ${selectedYear}. Use the toggle above to show past play dates.`
+                          : `No play days found for ${selectedYear}.`}
                     </td>
                   </tr>
                 ) : (
-                  filteredPlayDays.map((playDay) => (
+                  visiblePlayDays.map((playDay) => (
                     <tr key={playDay.id} className={playDay.is_cancelled ? "bg-red-50" : ""}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-500">
@@ -828,10 +866,16 @@ export default function UltraPostsEditable({ existingPlayDays = [], sponsors = [
 
             {/* Mobile view */}
             <div className="md:hidden">
-              {filteredPlayDays.length === 0 ? (
-                <div className="px-6 py-4 text-center text-gray-500">No play days found for {selectedYear}.</div>
+              {visiblePlayDays.length === 0 ? (
+                <div className="px-6 py-4 text-center text-gray-500">
+                  {filteredPlayDays.length === 0
+                    ? `No play days found for ${selectedYear}.`
+                    : shouldCollapsePastPlayDays
+                      ? `No upcoming play dates found for ${selectedYear}. Use the toggle above to show past play dates.`
+                      : `No play days found for ${selectedYear}.`}
+                </div>
               ) : (
-                filteredPlayDays.map((playDay) => (
+                visiblePlayDays.map((playDay) => (
                   <div
                     key={playDay.id}
                     className={`border-b border-gray-200 p-4 ${playDay.is_cancelled ? "bg-red-50" : ""}`}

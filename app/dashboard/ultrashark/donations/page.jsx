@@ -1,6 +1,7 @@
 import { getAllDonations, getAllExpenses } from "@/app/_actions";
 import { getSession } from "@/app/lib/auth"; // Adjust based on your session management
 import AdminDonationsTable from "@/components/AdminDonationsTable";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 
 export default async function AdminDonationsPage() {
   const session = await getSession();
@@ -9,10 +10,9 @@ export default async function AdminDonationsPage() {
   // Check if user is an admin
   if (!user || user.memberType !== "ultrashark") {
     return (
-      <div className="container mx-auto py-6 px-4">
-        <h1 className="text-2xl font-bold mb-6">Donations Management</h1>
+      <UltrasharkPageShell title="Donations Management">
         <p>You don't have permission to view this page.</p>
-      </div>
+      </UltrasharkPageShell>
     );
   }
 
@@ -24,14 +24,12 @@ export default async function AdminDonationsPage() {
   const serializedExpenses = JSON.parse(JSON.stringify(expenses));
 
   return (
-    <div className="container mx-auto py-6 px-4">
-      <h1 className="text-2xl font-bold mb-6">All Donations</h1>
-
+    <UltrasharkPageShell title="All Donations">
       <AdminDonationsTable
         donations={serializedDonations}
         expenses={serializedExpenses}
       />
-    </div>
+    </UltrasharkPageShell>
   );
 }
 

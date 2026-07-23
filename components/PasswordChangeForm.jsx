@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { updatePassword } from "@/app/_actions";
 import { useRouter } from "next/navigation";
 import { ActionButton } from "@/components/ActionButton";
+import Image from "next/image";
 
 // Cancel button component
 function CancelButton({ onClick }) {
@@ -101,12 +102,23 @@ export default function PasswordChangeForm({ user }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
               onClick={() => togglePasswordVisibility("current")}
+              aria-label={
+                showPassword.current ? "Hide password" : "Show password"
+              }
             >
-              <span className="text-xs text-gray-600">
-                {showPassword.current ? "Hide" : "Show"}
-              </span>
+              <Image
+                src={
+                  showPassword.current
+                    ? "/images/icons8-hide-16.png"
+                    : "/images/icons8-eye-16.png"
+                }
+                alt={showPassword.current ? "Hide password" : "Show password"}
+                width={16}
+                height={16}
+                unoptimized
+              />
             </button>
           </div>
         </div>
@@ -129,12 +141,21 @@ export default function PasswordChangeForm({ user }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
               onClick={() => togglePasswordVisibility("new")}
+              aria-label={showPassword.new ? "Hide password" : "Show password"}
             >
-              <span className="text-xs text-gray-600">
-                {showPassword.new ? "Hide" : "Show"}
-              </span>
+              <Image
+                src={
+                  showPassword.new
+                    ? "/images/icons8-hide-16.png"
+                    : "/images/icons8-eye-16.png"
+                }
+                alt={showPassword.new ? "Hide password" : "Show password"}
+                width={16}
+                height={16}
+                unoptimized
+              />
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-1">
@@ -160,12 +181,23 @@ export default function PasswordChangeForm({ user }) {
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
               onClick={() => togglePasswordVisibility("confirm")}
+              aria-label={
+                showPassword.confirm ? "Hide password" : "Show password"
+              }
             >
-              <span className="text-xs text-gray-600">
-                {showPassword.confirm ? "Hide" : "Show"}
-              </span>
+              <Image
+                src={
+                  showPassword.confirm
+                    ? "/images/icons8-hide-16.png"
+                    : "/images/icons8-eye-16.png"
+                }
+                alt={showPassword.confirm ? "Hide password" : "Show password"}
+                width={16}
+                height={16}
+                unoptimized
+              />
             </button>
           </div>
         </div>

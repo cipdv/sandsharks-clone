@@ -215,6 +215,16 @@ export default function MemberProfile({ member }) {
                 </div>
 
                 <div>
+                  <p className="text-sm text-gray-500">Last Login</p>
+                  <p>{formatDate(member.lastLoginAt)}</p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Last Seen</p>
+                  <p>{formatDate(member.lastSeenAt)}</p>
+                </div>
+
+                <div>
                   <p className="text-sm text-gray-500">Email Subscription</p>
                   <p>{member.emailList ? "Subscribed" : "Not subscribed"}</p>
                 </div>

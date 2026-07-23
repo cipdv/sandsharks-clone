@@ -1,5 +1,6 @@
 import { getMemberById } from "@/app/_actions";
 import MemberProfile from "@/components/MemberProfile";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 import { notFound } from "next/navigation";
 
 export default async function MemberPage({ params }) {
@@ -15,8 +16,8 @@ export default async function MemberPage({ params }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <UltrasharkPageShell showDashboardLink={false}>
       <MemberProfile member={member} />
-    </div>
+    </UltrasharkPageShell>
   );
 }

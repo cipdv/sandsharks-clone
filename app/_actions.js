@@ -20,6 +20,7 @@ import {
   sendResendBatchWithRetry,
 } from "@/app/lib/email-sender";
 import { renderEmailBlastEmail } from "@/app/lib/email-templates";
+import { ensureMemberActivityColumns } from "@/app/lib/member-session-store";
 import {
   getLocalEmailSendCountForToday,
   getLocalEmailSendWindow,
@@ -40,6 +41,7 @@ import { PostFormSchema } from "@/app/schemas/postFormSchema";
 
 let surveyTablesPromise;
 let expenseTablesPromise;
+let eventTablesPromise;
 
 const DEFAULT_SURVEY_QUESTIONS = [
   {
@@ -244,6 +246,75 @@ async function ensureExpenseTables() {
   }
 
   return expenseTablesPromise;
+}
+
+async function ensureEventTables() {
+  if (!eventTablesPromise) {
+    eventTablesPromise = (async () => {
+      await sql`
+        CREATE TABLE IF NOT EXISTS sandshark_events (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          details TEXT NOT NULL,
+          event_date DATE NOT NULL,
+          start_time TIME NOT NULL,
+          end_time TIME,
+          location_name TEXT NOT NULL,
+          address TEXT,
+          registration_type TEXT NOT NULL DEFAULT 'members',
+          volunteer_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+          tasks JSONB NOT NULL DEFAULT '[]'::jsonb,
+          created_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS sandshark_event_registrations (
+          id SERIAL PRIMARY KEY,
+          event_id INTEGER NOT NULL REFERENCES sandshark_events(id) ON DELETE CASCADE,
+          member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
+          guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
+          registrant_type TEXT NOT NULL,
+          wants_to_volunteer BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT sandshark_event_registrant_required
+            CHECK (
+              (registrant_type = 'member' AND member_id IS NOT NULL)
+              OR (registrant_type = 'guest' AND guest_id IS NOT NULL)
+            )
+        )
+      `;
+
+      await sql`
+        ALTER TABLE sandshark_event_registrations
+        ADD COLUMN IF NOT EXISTS wants_to_volunteer BOOLEAN NOT NULL DEFAULT FALSE
+      `;
+
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sandshark_event_member_registration
+        ON sandshark_event_registrations(event_id, member_id)
+        WHERE member_id IS NOT NULL
+      `;
+
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sandshark_event_guest_registration
+        ON sandshark_event_registrations(event_id, guest_id)
+        WHERE guest_id IS NOT NULL
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_sandshark_events_event_date
+        ON sandshark_events(event_date)
+      `;
+    })().catch((error) => {
+      eventTablesPromise = null;
+      throw error;
+    });
+  }
+
+  return eventTablesPromise;
 }
 
 function normalizeExpenseCategory(category) {
@@ -516,6 +587,8 @@ export async function getCurrentUser() {
 export async function registerNewMember(prevState, formData) {
   // Convert the form data to an object
   const formDataObj = Object.fromEntries(formData.entries());
+  const redirectTo = String(formDataObj.redirectTo || "");
+  const policyAgreement = formDataObj.policyAgreement === "on";
 
   // Normalize the email address
   formDataObj.email = formDataObj.email.toLowerCase().trim();
@@ -524,6 +597,21 @@ export async function registerNewMember(prevState, formData) {
   formDataObj.firstName =
     formDataObj.firstName.charAt(0).toUpperCase() +
     formDataObj.firstName.slice(1);
+
+  if (!policyAgreement) {
+    return {
+      success: false,
+      message:
+        "You must agree to the waiver, privacy policy, and photo consent policy before signing up.",
+      formData: {
+        firstName: formDataObj.firstName || "",
+        lastName: formDataObj.lastName || "",
+        email: formDataObj.email || "",
+        pronouns: formDataObj.pronouns || "",
+        instagramHandle: formDataObj.instagramHandle || "",
+      },
+    };
+  }
 
   // Validate the form data
   const result = MemberSchema.safeParse(formDataObj);
@@ -679,6 +767,58 @@ export async function registerNewMember(prevState, formData) {
       ? instagramHandle.trim().replace(/^@/, "")
       : null;
 
+    const registrationDonationPaymentIntentId = String(
+      formData.get("registrationDonationPaymentIntentId") || "",
+    ).trim();
+    let lastDonationDate = null;
+    let lastDonationAmount = null;
+
+    if (registrationDonationPaymentIntentId) {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        registrationDonationPaymentIntentId,
+      );
+
+      if (!paymentIntent || paymentIntent.status !== "succeeded") {
+        return {
+          success: false,
+          message:
+            "The donation payment could not be verified. Please contact Sandsharks.",
+          formData: {
+            firstName: firstName || "",
+            lastName: lastName || "",
+            email: email || "",
+            pronouns: pronouns || "",
+            instagramHandle: formData.get("instagramHandle") || "",
+          },
+        };
+      }
+
+      const paymentEmail = String(paymentIntent.metadata?.guest_email || "")
+        .toLowerCase()
+        .trim();
+
+      if (paymentEmail && paymentEmail !== email) {
+        return {
+          success: false,
+          message:
+            "The donation payment does not match this registration email. Please contact Sandsharks.",
+          formData: {
+            firstName: firstName || "",
+            lastName: lastName || "",
+            email: email || "",
+            pronouns: pronouns || "",
+            instagramHandle: formData.get("instagramHandle") || "",
+          },
+        };
+      }
+
+      lastDonationDate = paymentIntent.created
+        ? new Date(paymentIntent.created * 1000)
+        : new Date();
+      lastDonationAmount =
+        (paymentIntent.amount_received || paymentIntent.amount) / 100;
+    }
+
     // Insert new user into database
     const newMember = await sql`
       INSERT INTO members (
@@ -692,7 +832,10 @@ export async function registerNewMember(prevState, formData) {
         email_list,
         profile_pic_url,
         profile_pic_status,
-        instagram_handle
+        instagram_handle,
+        photo_consent,
+        last_donation_date,
+        last_donation_amount
       ) 
       VALUES (
         ${firstName}, 
@@ -705,12 +848,25 @@ export async function registerNewMember(prevState, formData) {
         ${true},
         ${profilePicUrl},
         ${profilePicStatus},
-        ${cleanedInstagramHandle}
+        ${cleanedInstagramHandle},
+        ${true},
+        ${lastDonationDate},
+        ${lastDonationAmount}
       )
       RETURNING *
     `;
 
     const memberData = newMember.rows[0];
+
+    if (registrationDonationPaymentIntentId) {
+      await sql`
+        UPDATE donations
+        SET
+          member_id = ${memberData.id},
+          notes = ${`Registration donation - Name: ${firstName} ${lastName}, Email: ${email}`}
+        WHERE session_id = ${registrationDonationPaymentIntentId}
+      `;
+    }
 
     // Send welcome email (don't fail registration if email fails)
     try {
@@ -749,7 +905,108 @@ export async function registerNewMember(prevState, formData) {
 
   // These must be outside try/catch block
   revalidatePath("/");
+  if (redirectTo.startsWith("/events")) {
+    redirect(redirectTo);
+  }
+
   redirect("/dashboard/member");
+}
+
+export async function validateNewMemberSignup(formData) {
+  const formDataObj = Object.fromEntries(formData.entries());
+  const policyAgreement = formDataObj.policyAgreement === "on";
+  formDataObj.email = String(formDataObj.email || "").toLowerCase().trim();
+  formDataObj.firstName = String(formDataObj.firstName || "").trim();
+  formDataObj.lastName = String(formDataObj.lastName || "").trim();
+
+  const preservedFormData = {
+    firstName: formDataObj.firstName || "",
+    lastName: formDataObj.lastName || "",
+    email: formDataObj.email || "",
+    pronouns: formDataObj.pronouns || "",
+    instagramHandle: formDataObj.instagramHandle || "",
+  };
+
+  if (!policyAgreement) {
+    return {
+      success: false,
+      message:
+        "You must agree to the waiver, privacy policy, and photo consent policy before signing up.",
+      formData: preservedFormData,
+    };
+  }
+
+  const result = MemberSchema.safeParse(formDataObj);
+
+  if (result.error) {
+    const passwordError = result.error.issues.find(
+      (issue) => issue.path[0] === "password" && issue.code === "too_small",
+    );
+    const confirmPasswordError = result.error.issues.find(
+      (issue) =>
+        issue.path[0] === "confirmPassword" && issue.code === "too_small",
+    );
+    const emailError = result.error.issues.find((issue) => {
+      return issue.path[0] === "email" && issue.validation === "email";
+    });
+
+    if (passwordError) {
+      return {
+        success: false,
+        password: "^ Password must be at least 6 characters long",
+        formData: preservedFormData,
+      };
+    }
+
+    if (confirmPasswordError) {
+      return {
+        success: false,
+        confirmPassword:
+          "^ Passwords must be at least 6 characters long and match",
+        formData: preservedFormData,
+      };
+    }
+
+    if (emailError) {
+      return {
+        success: false,
+        email: "^ Please enter a valid email address",
+        formData: preservedFormData,
+      };
+    }
+
+    return {
+      success: false,
+      message:
+        "Failed to register: make sure all required fields are completed and try again",
+      formData: preservedFormData,
+    };
+  }
+
+  const { email, password, confirmPassword } = result.data;
+
+  if (password !== confirmPassword) {
+    return {
+      success: false,
+      confirmPassword: "^ Passwords do not match",
+      formData: preservedFormData,
+    };
+  }
+
+  const existingUser = await sql`
+    SELECT id FROM members WHERE email = ${email}
+    LIMIT 1
+  `;
+
+  if (existingUser.rows.length > 0) {
+    return {
+      success: false,
+      email: "^ This email is already registered",
+      formData: preservedFormData,
+    };
+  }
+
+  return { success: true };
 }
 
 // export async function registerNewMember(prevState, formData) {
@@ -1643,27 +1900,40 @@ export async function confirmWaiver(formData) {
 
   // Handle both FormData objects and objects from useActionState
   let photoConsent = false;
+  let hasPhotoConsent = false;
 
   // Check if formData is a FormData object
   if (formData instanceof FormData) {
+    hasPhotoConsent = formData.has("photoConsent");
     photoConsent = formData.get("photoConsent") === "on";
   }
   // If it's an object with entries method (from useActionState)
   else if (formData && typeof formData === "object") {
+    hasPhotoConsent = Object.hasOwn(formData, "photoConsent");
     photoConsent =
       formData.photoConsent === true || formData.photoConsent === "on";
   }
 
   try {
     // Update the member record to mark waiver as confirmed and store photo consent
-    await sql`
-      UPDATE members 
-      SET 
-        waiver_confirmed = TRUE,
-        waiver_confirmed_at = ${new Date()},
-        photo_consent = ${photoConsent}
-      WHERE id = ${_id}
-    `;
+    if (hasPhotoConsent) {
+      await sql`
+        UPDATE members 
+        SET 
+          waiver_confirmed = TRUE,
+          waiver_confirmed_at = ${new Date()},
+          photo_consent = ${photoConsent}
+        WHERE id = ${_id}
+      `;
+    } else {
+      await sql`
+        UPDATE members 
+        SET 
+          waiver_confirmed = TRUE,
+          waiver_confirmed_at = ${new Date()}
+        WHERE id = ${_id}
+      `;
+    }
   } catch (error) {
     console.error("Error confirming waiver:", error);
     return { message: "An error occurred. Please try again." };
@@ -1733,6 +2003,81 @@ export async function getCurrentSurvey() {
   return result.rows[0] || null;
 }
 
+export async function getActiveSurveyCount() {
+  const user = await requireUltrashark();
+  if (!user) {
+    return 0;
+  }
+
+  await ensureSurveyTables();
+
+  const result = await sql`
+    SELECT COUNT(*)::int AS active_count
+    FROM survey_definitions
+    WHERE is_visible = TRUE
+  `;
+
+  return result.rows[0]?.active_count || 0;
+}
+
+export async function getAllSurveys() {
+  const user = await requireUltrashark();
+  if (!user) {
+    return [];
+  }
+
+  await ensureSurveyTables();
+
+  const result = await sql`
+    SELECT
+      survey_definitions.id,
+      survey_definitions.title,
+      survey_definitions.description,
+      survey_definitions.is_visible,
+      survey_definitions.updated_at,
+      survey_definitions.created_at,
+      COUNT(survey_responses.id)::int AS response_count
+    FROM survey_definitions
+    LEFT JOIN survey_responses
+      ON survey_responses.survey_id = survey_definitions.id
+    GROUP BY survey_definitions.id
+    ORDER BY survey_definitions.updated_at DESC
+  `;
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    is_visible: row.is_visible,
+    updated_at: row.updated_at,
+    created_at: row.created_at,
+    responseCount: row.response_count || 0,
+  }));
+}
+
+export async function getSurveyById(surveyId) {
+  const user = await requireUltrashark();
+  if (!user) {
+    return null;
+  }
+
+  await ensureSurveyTables();
+
+  const id = Number(surveyId);
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  const result = await sql`
+    SELECT id, slug, title, description, is_visible, questions, updated_at, created_at
+    FROM survey_definitions
+    WHERE id = ${id}
+    LIMIT 1
+  `;
+
+  return result.rows[0] || null;
+}
+
 export async function getVisibleSurvey() {
   const survey = await getCurrentSurvey();
 
@@ -1743,7 +2088,7 @@ export async function getVisibleSurvey() {
   return survey;
 }
 
-export async function getSurveyResults() {
+export async function getSurveyResults(surveyId) {
   const session = await getSession();
   const user = session?.resultObj;
 
@@ -1759,7 +2104,7 @@ export async function getSurveyResults() {
   try {
     await ensureSurveyTables();
 
-    const survey = await getCurrentSurvey();
+    const survey = surveyId ? await getSurveyById(surveyId) : await getCurrentSurvey();
 
     if (!survey) {
       return {
@@ -1826,6 +2171,7 @@ export async function saveSurveySettings(prevState, formData) {
   const description = String(formData.get("description") || "").trim();
   const isVisible = formData.get("isVisible") === "on";
   const questionsJson = String(formData.get("questionsJson") || "[]");
+  const surveyId = Number(formData.get("surveyId") || 0);
 
   if (!title) {
     return { success: false, message: "Please enter a survey title." };
@@ -1865,33 +2211,50 @@ export async function saveSurveySettings(prevState, formData) {
   try {
     await ensureSurveyTables();
 
-    await sql`
-      INSERT INTO survey_definitions (
-        slug,
-        title,
-        description,
-        is_visible,
-        questions,
-        updated_at
-      )
-      VALUES (
-        'current',
-        ${title},
-        ${description},
-        ${isVisible},
-        ${JSON.stringify(questions)}::jsonb,
-        NOW()
-      )
-      ON CONFLICT (slug) DO UPDATE SET
-        title = EXCLUDED.title,
-        description = EXCLUDED.description,
-        is_visible = EXCLUDED.is_visible,
-        questions = EXCLUDED.questions,
-        updated_at = NOW()
-    `;
+    if (Number.isInteger(surveyId) && surveyId > 0) {
+      await sql`
+        UPDATE survey_definitions
+        SET
+          title = ${title},
+          description = ${description},
+          is_visible = ${isVisible},
+          questions = ${JSON.stringify(questions)}::jsonb,
+          updated_at = NOW()
+        WHERE id = ${surveyId}
+      `;
+    } else {
+      await sql`
+        INSERT INTO survey_definitions (
+          slug,
+          title,
+          description,
+          is_visible,
+          questions,
+          updated_at
+        )
+        VALUES (
+          'current',
+          ${title},
+          ${description},
+          ${isVisible},
+          ${JSON.stringify(questions)}::jsonb,
+          NOW()
+        )
+        ON CONFLICT (slug) DO UPDATE SET
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          is_visible = EXCLUDED.is_visible,
+          questions = EXCLUDED.questions,
+          updated_at = NOW()
+      `;
+    }
 
     revalidatePath("/survey");
+    revalidatePath("/dashboard/ultrashark");
     revalidatePath("/dashboard/ultrashark/surveys");
+    if (Number.isInteger(surveyId) && surveyId > 0) {
+      revalidatePath(`/dashboard/ultrashark/surveys/${surveyId}`);
+    }
 
     return {
       success: true,
@@ -2013,6 +2376,645 @@ export async function getMembers() {
   } catch (error) {
     console.error("Error fetching members:", error);
     return [];
+  }
+}
+
+function normalizeEventRegistrationType(value) {
+  const normalizedValue = String(value || "").trim();
+  const allowedTypes = ["members", "public_registration", "none"];
+
+  return allowedTypes.includes(normalizedValue) ? normalizedValue : "members";
+}
+
+function parseJsonFormValue(value, fallbackValue) {
+  try {
+    const parsedValue = JSON.parse(String(value || ""));
+    return Array.isArray(parsedValue) ? parsedValue : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function normalizeJsonArray(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return parseJsonFormValue(value, []);
+  }
+
+  return [];
+}
+
+function normalizeEventRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    details: row.details,
+    eventDate:
+      row.event_date instanceof Date
+        ? row.event_date.toISOString().slice(0, 10)
+        : String(row.event_date || ""),
+    startTime: String(row.start_time || "").slice(0, 5),
+    endTime: row.end_time ? String(row.end_time).slice(0, 5) : "",
+    locationName: row.location_name,
+    address: row.address,
+    registrationType: row.registration_type,
+    volunteerIds: normalizeJsonArray(row.volunteer_ids),
+    tasks: normalizeJsonArray(row.tasks),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizeEventRegistrationRow(row) {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    registrantType: row.registrant_type,
+    name: [row.first_name, row.last_name].filter(Boolean).join(" "),
+    email: row.email,
+    wantsToVolunteer: Boolean(row.wants_to_volunteer),
+    createdAt: row.created_at,
+  };
+}
+
+function getEventFormPayload(formData) {
+  const title = String(formData.get("title") || "").trim();
+  const details = String(formData.get("details") || "").trim();
+  const eventDate = String(formData.get("eventDate") || "").trim();
+  const startTime = String(formData.get("startTime") || "").trim();
+  const endTime = String(formData.get("endTime") || "").trim();
+  const locationName = String(formData.get("locationName") || "").trim();
+  const address = String(formData.get("address") || "").trim();
+  const registrationType = normalizeEventRegistrationType(
+    formData.get("registrationType"),
+  );
+  const volunteerIds = parseJsonFormValue(formData.get("volunteerIds"), [])
+    .map((id) => Number.parseInt(id, 10))
+    .filter((id) => Number.isInteger(id));
+  const tasks = parseJsonFormValue(formData.get("tasks"), [])
+    .map((task) => ({
+      name: String(task?.name || "").trim(),
+      volunteerIds: Array.isArray(task?.volunteerIds)
+        ? task.volunteerIds
+            .map((id) => Number.parseInt(id, 10))
+            .filter((id) => Number.isInteger(id))
+        : [],
+    }))
+    .filter((task) => task.name);
+
+  if (!title || !details || !eventDate || !startTime || !locationName) {
+    return {
+      success: false,
+      message:
+        "Please fill out the event title, details, date, start time, and location name.",
+    };
+  }
+
+  return {
+    success: true,
+    event: {
+      title,
+      details,
+      eventDate,
+      startTime,
+      endTime,
+      locationName,
+      address,
+      registrationType,
+      volunteerIds: [...new Set(volunteerIds)],
+      tasks,
+    },
+  };
+}
+
+export async function getUltrasharkEvents() {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an admin to view events",
+        events: [],
+      };
+    }
+
+    await ensureEventTables();
+
+    const result = await sql`
+      SELECT *
+      FROM sandshark_events
+      ORDER BY event_date ASC, start_time ASC
+    `;
+    const registrationsResult = await sql`
+      SELECT
+        ser.id,
+        ser.event_id,
+        ser.registrant_type,
+        ser.wants_to_volunteer,
+        ser.created_at,
+        CASE
+          WHEN ser.registrant_type = 'member' THEN m.first_name
+          ELSE g.first_name
+        END AS first_name,
+        CASE
+          WHEN ser.registrant_type = 'member' THEN m.last_name
+          ELSE g.last_name
+        END AS last_name,
+        CASE
+          WHEN ser.registrant_type = 'member' THEN m.email
+          ELSE g.email
+        END AS email
+      FROM sandshark_event_registrations ser
+      LEFT JOIN members m ON ser.member_id = m.id
+      LEFT JOIN guests g ON ser.guest_id = g.id
+      ORDER BY ser.created_at ASC
+    `;
+    const registrationsByEvent = registrationsResult.rows.reduce(
+      (registrations, row) => {
+        const registration = normalizeEventRegistrationRow(row);
+
+        if (!registrations[registration.eventId]) {
+          registrations[registration.eventId] = {
+            members: [],
+            guests: [],
+          };
+        }
+
+        if (registration.registrantType === "member") {
+          registrations[registration.eventId].members.push(registration);
+        } else {
+          registrations[registration.eventId].guests.push(registration);
+        }
+
+        return registrations;
+      },
+      {},
+    );
+
+    return {
+      success: true,
+      events: result.rows.map((row) => {
+        const event = normalizeEventRow(row);
+        const registrations = registrationsByEvent[event.id] || {
+          members: [],
+          guests: [],
+        };
+
+        return {
+          ...event,
+          registrations,
+          rsvpCounts: {
+            members: registrations.members.length,
+            guests: registrations.guests.length,
+            total: registrations.members.length + registrations.guests.length,
+          },
+        };
+      }),
+    };
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    return {
+      success: false,
+      message: "Failed to fetch events",
+      events: [],
+    };
+  }
+}
+
+export async function getPublicUpcomingEvents(currentMemberId = null) {
+  try {
+    await ensureEventTables();
+    const parsedMemberId = currentMemberId
+      ? Number.parseInt(currentMemberId, 10)
+      : -1;
+    const memberId = Number.isInteger(parsedMemberId) ? parsedMemberId : -1;
+
+    const result = await sql`
+      SELECT
+        e.id,
+        e.title,
+        e.details,
+        e.event_date,
+        e.start_time,
+        e.end_time,
+        e.location_name,
+        e.address,
+        e.registration_type,
+        e.volunteer_ids,
+        e.tasks,
+        e.created_at,
+        e.updated_at,
+        (current_member_registration.id IS NOT NULL) AS current_user_registered
+      FROM sandshark_events e
+      LEFT JOIN sandshark_event_registrations current_member_registration
+        ON current_member_registration.event_id = e.id
+        AND current_member_registration.member_id = ${memberId}
+        AND current_member_registration.registrant_type = 'member'
+      WHERE e.event_date >= CURRENT_DATE
+      ORDER BY e.event_date ASC, e.start_time ASC
+    `;
+
+    return result.rows.map((row) => ({
+      ...normalizeEventRow(row),
+      currentUserRegistered: row.current_user_registered,
+    }));
+  } catch (error) {
+    console.error("Error fetching public events:", error);
+    return [];
+  }
+}
+
+async function getRegistrableEvent(eventId) {
+  await ensureEventTables();
+
+  const result = await sql`
+    SELECT id, registration_type
+    FROM sandshark_events
+    WHERE id = ${eventId}
+      AND event_date >= CURRENT_DATE
+    LIMIT 1
+  `;
+
+  return result.rows[0] || null;
+}
+
+export async function registerMemberForEvent(prevState, formData) {
+  try {
+    const session = await getSession();
+    const user = session?.resultObj;
+    const eventId = Number.parseInt(formData.get("eventId"), 10);
+    const wantsToVolunteer = formData.get("wantsToVolunteer") === "on";
+
+    if (!user) {
+      return {
+        success: false,
+        message: "Please sign in before registering for this event.",
+      };
+    }
+
+    if (!Number.isInteger(eventId)) {
+      return {
+        success: false,
+        message: "Event ID is required.",
+      };
+    }
+
+    const event = await getRegistrableEvent(eventId);
+
+    if (!event || event.registration_type === "none") {
+      return {
+        success: false,
+        message: "This event is not open for registration.",
+      };
+    }
+
+    await sql`
+      INSERT INTO sandshark_event_registrations (
+        event_id,
+        member_id,
+        registrant_type,
+        wants_to_volunteer
+      )
+      VALUES (
+        ${eventId},
+        ${user._id || user.id},
+        'member',
+        ${wantsToVolunteer}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+
+    revalidatePath("/events");
+
+    return {
+      success: true,
+      message: "You are registered for this event.",
+    };
+  } catch (error) {
+    console.error("Error registering member for event:", error);
+    return {
+      success: false,
+      message: "Failed to register for this event.",
+    };
+  }
+}
+
+export async function cancelMemberEventRegistration(prevState, formData) {
+  try {
+    const session = await getSession();
+    const user = session?.resultObj;
+    const eventId = Number.parseInt(formData.get("eventId"), 10);
+
+    if (!user) {
+      return {
+        success: false,
+        message: "Please sign in before changing this event registration.",
+      };
+    }
+
+    if (!Number.isInteger(eventId)) {
+      return {
+        success: false,
+        message: "Event ID is required.",
+      };
+    }
+
+    await ensureEventTables();
+
+    await sql`
+      DELETE FROM sandshark_event_registrations
+      WHERE event_id = ${eventId}
+        AND member_id = ${user._id || user.id}
+        AND registrant_type = 'member'
+    `;
+
+    revalidatePath("/events");
+
+    return {
+      success: true,
+      message: "Your event registration has been cancelled.",
+    };
+  } catch (error) {
+    console.error("Error cancelling member event registration:", error);
+    return {
+      success: false,
+      message: "Failed to cancel your event registration.",
+    };
+  }
+}
+
+export async function registerGuestForEvent(prevState, formData) {
+  try {
+    const eventId = Number.parseInt(formData.get("eventId"), 10);
+    const firstName = String(formData.get("firstName") || "").trim();
+    const lastName = String(formData.get("lastName") || "").trim();
+    const email = String(formData.get("email") || "").trim().toLowerCase();
+    const photoConsent = formData.get("photoConsent") === "on";
+    const waiverAgreement = formData.get("waiverAgreement") === "on";
+    const wantsToVolunteer = formData.get("wantsToVolunteer") === "on";
+
+    if (!Number.isInteger(eventId)) {
+      return {
+        success: false,
+        message: "Event ID is required.",
+      };
+    }
+
+    const event = await getRegistrableEvent(eventId);
+
+    if (!event || event.registration_type !== "public_registration") {
+      return {
+        success: false,
+        message: "This event is not open for non-member registration.",
+      };
+    }
+
+    if (!firstName || !lastName || !email || !waiverAgreement) {
+      return {
+        success: false,
+        message: "Please fill in all required fields and agree to the waiver.",
+      };
+    }
+
+    if (!isValidEmailAddress(email)) {
+      return {
+        success: false,
+        message: "Please enter a valid email address.",
+      };
+    }
+
+    const existingGuest = await sql`
+      SELECT id
+      FROM guests
+      WHERE email = ${email}
+      LIMIT 1
+    `;
+
+    let guestId = existingGuest.rows[0]?.id;
+
+    if (!guestId) {
+      const guestResult = await sql`
+        INSERT INTO guests (
+          first_name,
+          last_name,
+          email,
+          photo_release,
+          waiver_confirmed_at
+        )
+        VALUES (
+          ${firstName},
+          ${lastName},
+          ${email},
+          ${photoConsent},
+          CURRENT_TIMESTAMP
+        )
+        RETURNING id
+      `;
+
+      guestId = guestResult.rows[0].id;
+    }
+
+    await sql`
+      INSERT INTO sandshark_event_registrations (
+        event_id,
+        guest_id,
+        registrant_type,
+        wants_to_volunteer
+      )
+      VALUES (
+        ${eventId},
+        ${guestId},
+        'guest',
+        ${wantsToVolunteer}
+      )
+      ON CONFLICT DO NOTHING
+    `;
+
+    revalidatePath("/events");
+
+    return {
+      success: true,
+      message: "You are registered for this event.",
+    };
+  } catch (error) {
+    console.error("Error registering guest for event:", error);
+    return {
+      success: false,
+      message: "Failed to register for this event.",
+    };
+  }
+}
+
+export async function createUltrasharkEvent(prevState, formData) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an admin to create events",
+      };
+    }
+
+    const payload = getEventFormPayload(formData);
+
+    if (!payload.success) {
+      return payload;
+    }
+
+    const event = payload.event;
+    await ensureEventTables();
+
+    await sql`
+      INSERT INTO sandshark_events (
+        title,
+        details,
+        event_date,
+        start_time,
+        end_time,
+        location_name,
+        address,
+        registration_type,
+        volunteer_ids,
+        tasks,
+        created_by,
+        updated_at
+      )
+      VALUES (
+        ${event.title},
+        ${event.details},
+        ${event.eventDate},
+        ${event.startTime},
+        ${event.endTime || null},
+        ${event.locationName},
+        ${event.address || null},
+        ${event.registrationType},
+        ${JSON.stringify(event.volunteerIds)}::jsonb,
+        ${JSON.stringify(event.tasks)}::jsonb,
+        ${user._id || user.id || null},
+        NOW()
+      )
+    `;
+
+    revalidatePath("/dashboard/ultrashark/events");
+
+    return {
+      success: true,
+      message: "Event created successfully",
+    };
+  } catch (error) {
+    console.error("Error creating event:", error);
+    return {
+      success: false,
+      message: "Failed to create event",
+    };
+  }
+}
+
+export async function updateUltrasharkEvent(prevState, formData) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an admin to update events",
+      };
+    }
+
+    const eventId = Number.parseInt(formData.get("eventId"), 10);
+
+    if (!Number.isInteger(eventId)) {
+      return {
+        success: false,
+        message: "Event ID is required",
+      };
+    }
+
+    const payload = getEventFormPayload(formData);
+
+    if (!payload.success) {
+      return payload;
+    }
+
+    const event = payload.event;
+    await ensureEventTables();
+
+    await sql`
+      UPDATE sandshark_events
+      SET
+        title = ${event.title},
+        details = ${event.details},
+        event_date = ${event.eventDate},
+        start_time = ${event.startTime},
+        end_time = ${event.endTime || null},
+        location_name = ${event.locationName},
+        address = ${event.address || null},
+        registration_type = ${event.registrationType},
+        volunteer_ids = ${JSON.stringify(event.volunteerIds)}::jsonb,
+        tasks = ${JSON.stringify(event.tasks)}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${eventId}
+    `;
+
+    revalidatePath("/dashboard/ultrashark/events");
+
+    return {
+      success: true,
+      message: "Event updated successfully",
+    };
+  } catch (error) {
+    console.error("Error updating event:", error);
+    return {
+      success: false,
+      message: "Failed to update event",
+    };
+  }
+}
+
+export async function deleteUltrasharkEvent(prevState, formData) {
+  try {
+    const user = await requireUltrashark();
+
+    if (!user) {
+      return {
+        success: false,
+        message: "You must be an admin to delete events",
+      };
+    }
+
+    const eventId = Number.parseInt(formData.get("eventId"), 10);
+
+    if (!Number.isInteger(eventId)) {
+      return {
+        success: false,
+        message: "Event ID is required",
+      };
+    }
+
+    await ensureEventTables();
+
+    await sql`
+      DELETE FROM sandshark_events
+      WHERE id = ${eventId}
+    `;
+
+    revalidatePath("/dashboard/ultrashark/events");
+
+    return {
+      success: true,
+      message: "Event deleted successfully",
+    };
+  } catch (error) {
+    console.error("Error deleting event:", error);
+    return {
+      success: false,
+      message: "Failed to delete event",
+    };
   }
 }
 
@@ -2538,6 +3540,7 @@ export async function createPlayDay(formData) {
     }
 
     revalidatePath("/dashboard/ultrashark");
+    revalidatePath("/dashboard/ultrashark/schedule");
     return {
       success: true,
       message: "Play day created successfully!",
@@ -2684,6 +3687,7 @@ export async function updatePlayDay(formData) {
     }
 
     revalidatePath("/dashboard/ultrashark");
+    revalidatePath("/dashboard/ultrashark/schedule");
     return {
       success: true,
       message: "Play day updated successfully!",
@@ -3865,6 +4869,7 @@ export async function deletePlayDay(playDayId) {
     `;
 
     revalidatePath("/dashboard/ultrashark");
+    revalidatePath("/dashboard/ultrashark/schedule");
     return { success: true, message: "Play day deleted successfully!" };
   } catch (error) {
     console.error("Error deleting play day:", error);
@@ -4015,6 +5020,7 @@ export async function cancelPlayDay(formData) {
 
   // These will only execute if no error was thrown
   revalidatePath("/dashboard/ultrashark");
+  revalidatePath("/dashboard/ultrashark/schedule");
 
   // Return the result
   return result;
@@ -4192,6 +5198,8 @@ export async function recordDonation(paymentIntentId) {
         last_donation_amount = ${donationAmount}
       WHERE id = ${memberId}
     `;
+
+    revalidatePath("/dashboard/ultrashark");
 
     return { success: true };
   } catch (error) {
@@ -4667,6 +5675,7 @@ export async function createExpense(formData) {
     `;
 
     revalidatePath("/dashboard/ultrashark/donations");
+    revalidatePath("/dashboard/ultrashark");
 
     return { success: true, message: "Expense created successfully." };
   } catch (error) {
@@ -4726,6 +5735,7 @@ export async function updateExpense(formData) {
     `;
 
     revalidatePath("/dashboard/ultrashark/donations");
+    revalidatePath("/dashboard/ultrashark");
 
     return { success: true, message: "Expense updated successfully." };
   } catch (error) {
@@ -4762,6 +5772,7 @@ export async function deleteExpense(expenseId) {
     `;
 
     revalidatePath("/dashboard/ultrashark/donations");
+    revalidatePath("/dashboard/ultrashark");
 
     return { success: true, message: "Expense deleted successfully." };
   } catch (error) {
@@ -5675,6 +6686,8 @@ export async function sendEmailBlast(formData) {
       )
     `;
 
+    revalidatePath("/dashboard/ultrashark/email");
+
     return {
       success: true,
       message: `Email blast sent successfully to ${successCount} members in the "${memberGroup}" group (${failureCount} failed${invalidRecipients.length ? `, ${invalidRecipients.length} skipped for invalid email addresses` : ""}).`,
@@ -6233,6 +7246,13 @@ export async function getLocalDevelopmentEmailJobStatus(jobId) {
   "use server";
 
   try {
+    if (process.env.NODE_ENV !== "development") {
+      return {
+        success: false,
+        message: "This page is only available when the app is running in development mode.",
+      };
+    }
+
     const session = await getSession();
     const user = session?.resultObj;
 
@@ -6289,6 +7309,10 @@ export async function getLocalDevelopmentEmailJobStatus(jobId) {
 }
 
 export async function getPendingLocalDevelopmentEmailJobs() {
+  if (process.env.NODE_ENV !== "development") {
+    return [];
+  }
+
   const session = await getSession();
   const user = session?.resultObj;
 
@@ -6369,6 +7393,8 @@ export async function getAllMembers() {
   }
 
   try {
+    await ensureMemberActivityColumns();
+
     // Query members with sponsor information using a LEFT JOIN
     // Added waiver_confirmed_at to the SELECT statement
     const membersResult = await sql`
@@ -6387,6 +7413,8 @@ export async function getAllMembers() {
         m.instagram_handle,
         m.about,
         m.profile_pic_status,
+        m.last_login_at,
+        m.last_seen_at,
         s.id AS sponsor_id,
         s.name AS sponsor_name,
         s.logo_url AS sponsor_logo
@@ -6420,6 +7448,8 @@ export async function getAllMembers() {
           memberType: row.member_type,
           instagramHandle: row.instagram_handle,
           about: row.about,
+          lastLoginAt: row.last_login_at,
+          lastSeenAt: row.last_seen_at,
           isVolunteer:
             row.member_type === "volunteer" ||
             row.member_type === "admin" ||
@@ -6561,12 +7591,38 @@ export async function rejectMember(memberId) {
   }
 
   try {
+    const pendingMemberResult = await sql`
+      SELECT first_name, last_name, email
+      FROM members
+      WHERE id = ${memberId} AND member_type = 'pending'
+      LIMIT 1
+    `;
+
+    if (pendingMemberResult.rows.length === 0) {
+      return {
+        success: false,
+        message: "Pending member not found",
+      };
+    }
+
+    const pendingMember = pendingMemberResult.rows[0];
+
+    await sql`
+      UPDATE donations
+      SET
+        member_id = NULL,
+        notes = COALESCE(notes || ' | ', '') || ${`Registration rejected - Former member: ${pendingMember.first_name} ${pendingMember.last_name}, Email: ${pendingMember.email}, Member ID: ${memberId}`}
+      WHERE member_id = ${memberId}
+    `;
+
     await sql`
       DELETE FROM members 
       WHERE id = ${memberId} AND member_type = 'pending'
     `;
 
     revalidatePath("/dashboard/ultrashark/members");
+    revalidatePath("/dashboard/ultrashark");
+    revalidatePath("/dashboard/ultrashark/donations");
     return { success: true };
   } catch (error) {
     console.error("Error rejecting member:", error);
@@ -6680,6 +7736,8 @@ export async function getMemberById(memberId) {
   }
 
   try {
+    await ensureMemberActivityColumns();
+
     // Query member with sponsor information
     const memberResult = await sql`
       SELECT 
@@ -6695,6 +7753,8 @@ export async function getMemberById(memberId) {
         m.created_at,
         m.email_list,
         m.last_donation_date,
+        m.last_login_at,
+        m.last_seen_at,
         s.id AS sponsor_id,
         s.name AS sponsor_name,
         s.logo_url AS sponsor_logo
@@ -6724,6 +7784,8 @@ export async function getMemberById(memberId) {
       createdAt: memberResult.rows[0].created_at,
       emailList: memberResult.rows[0].email_list,
       lastDonationDate: memberResult.rows[0].last_donation_date,
+      lastLoginAt: memberResult.rows[0].last_login_at,
+      lastSeenAt: memberResult.rows[0].last_seen_at,
       isVolunteer:
         memberResult.rows[0].member_type === "volunteer" ||
         memberResult.rows[0].member_type === "admin" ||
@@ -9526,6 +10588,7 @@ export async function recordGuestDonation(paymentIntentId) {
       paymentIntentId,
     );
     revalidatePath("/guest-donation");
+    revalidatePath("/dashboard/ultrashark");
     return { success: true, message: "Donation recorded successfully" };
   } catch (error) {
     console.error("Error recording guest donation:", error);

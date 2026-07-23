@@ -1,17 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function USMemberManagement({ members }) {
   const router = useRouter();
+  const pageSize = 100;
   const [searchTerm, setSearchTerm] = useState("");
   const [filterVolunteers, setFilterVolunteers] = useState(false);
   const [filterSponsors, setFilterSponsors] = useState(false);
   const [filterPhotoConsent, setFilterPhotoConsent] = useState(false);
   const [filterEmailList, setFilterEmailList] = useState(false);
   const [filterWaiverConfirmed, setFilterWaiverConfirmed] = useState(false);
+  const [filterNotSeenIn12Months, setFilterNotSeenIn12Months] =
+    useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
 
   // Filter members based on search and filters
   const filteredMembers = members.filter((member) => {
@@ -42,18 +48,50 @@ export default function USMemberManagement({ members }) {
       member.waiverConfirmed === null ||
       member.waiverConfirmed === undefined;
 
+    const lastSeenAt = member.lastSeenAt ? new Date(member.lastSeenAt) : null;
+    const matchesNotSeenIn12MonthsFilter =
+      !filterNotSeenIn12Months ||
+      !lastSeenAt ||
+      lastSeenAt < twelveMonthsAgo;
+
     return (
       matchesSearch &&
       matchesVolunteerFilter &&
       matchesSponsorFilter &&
       matchesPhotoConsentFilter &&
       matchesEmailListFilter &&
-      matchesWaiverConfirmedFilter
+      matchesWaiverConfirmedFilter &&
+      matchesNotSeenIn12MonthsFilter
     );
   });
+  const totalPages = Math.max(1, Math.ceil(filteredMembers.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (safeCurrentPage - 1) * pageSize;
+  const pageEndIndex = pageStartIndex + pageSize;
+  const paginatedMembers = filteredMembers.slice(pageStartIndex, pageEndIndex);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    filterVolunteers,
+    filterSponsors,
+    filterPhotoConsent,
+    filterEmailList,
+    filterWaiverConfirmed,
+    filterNotSeenIn12Months,
+  ]);
 
   const handleRowClick = (memberId) => {
     router.push(`/dashboard/ultrashark/members/${memberId}`);
+  };
+
+  const formatActivityDate = (dateValue) => {
+    if (!dateValue) {
+      return "Never";
+    }
+
+    return new Date(dateValue).toLocaleDateString();
   };
 
   // Count members with no photo consent but with waiver confirmed
@@ -61,9 +99,25 @@ export default function USMemberManagement({ members }) {
     (member) =>
       member.photoConsent === false && member.waiverConfirmedAt !== null
   ).length;
+  const notSeenIn12MonthsCount = members.filter((member) => {
+    const lastSeenAt = member.lastSeenAt ? new Date(member.lastSeenAt) : null;
+    return !lastSeenAt || lastSeenAt < twelveMonthsAgo;
+  }).length;
 
   return (
     <div className="max-w-5xl mx-auto">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-700">Total members</p>
+          <p className="text-2xl font-bold text-gray-900">{members.length}</p>
+        </div>
+        <p className="text-sm text-gray-500">
+          Showing {filteredMembers.length === 0 ? 0 : pageStartIndex + 1}-
+          {Math.min(pageEndIndex, filteredMembers.length)} of{" "}
+          {filteredMembers.length} matching members
+        </p>
+      </div>
+
       <div className="mb-4 flex flex-wrap gap-4 items-center">
         <div className="flex-grow">
           <input
@@ -123,6 +177,21 @@ export default function USMemberManagement({ members }) {
             />
             No Waiver Confirmed
           </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filterNotSeenIn12Months}
+              onChange={() =>
+                setFilterNotSeenIn12Months(!filterNotSeenIn12Months)
+              }
+            />
+            <span>
+              Not Seen in 12 Months{" "}
+              <span className="ml-1 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
+                {notSeenIn12MonthsCount}
+              </span>
+            </span>
+          </label>
         </div>
       </div>
 
@@ -140,10 +209,12 @@ export default function USMemberManagement({ members }) {
               <th className="py-2 px-4 border-b text-left">Email List</th>
               <th className="py-2 px-4 border-b text-left">Waiver</th>
               <th className="py-2 px-4 border-b text-left">Waiver Date</th>
+              <th className="py-2 px-4 border-b text-left">Last Login</th>
+              <th className="py-2 px-4 border-b text-left">Last Seen</th>
             </tr>
           </thead>
           <tbody>
-            {filteredMembers.map((member) => (
+            {paginatedMembers.map((member) => (
               <tr
                 key={member.id}
                 className="hover:bg-gray-50 cursor-pointer"
@@ -245,11 +316,17 @@ export default function USMemberManagement({ members }) {
                     "—"
                   )}
                 </td>
+                <td className="py-2 px-4 border-b text-xs">
+                  {formatActivityDate(member.lastLoginAt)}
+                </td>
+                <td className="py-2 px-4 border-b text-xs">
+                  {formatActivityDate(member.lastSeenAt)}
+                </td>
               </tr>
             ))}
             {filteredMembers.length === 0 && (
               <tr>
-                <td colSpan="10" className="py-4 text-center text-gray-500">
+                <td colSpan="12" className="py-4 text-center text-gray-500">
                   No members found matching your criteria
                 </td>
               </tr>
@@ -257,8 +334,30 @@ export default function USMemberManagement({ members }) {
           </tbody>
         </table>
       </div>
-      <div className="mt-4 text-sm text-gray-500">
-        Showing {filteredMembers.length} of {members.length} members
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-gray-500">
+          Page {safeCurrentPage} of {totalPages}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+            disabled={safeCurrentPage === 1}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentPage((page) => Math.min(totalPages, page + 1))
+            }
+            disabled={safeCurrentPage === totalPages}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
     </div>
   );

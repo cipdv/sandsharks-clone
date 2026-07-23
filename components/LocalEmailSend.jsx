@@ -182,7 +182,7 @@ export default function LocalEmailSend({ members, pendingJobs = [] }) {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto w-full max-w-full space-y-6">
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
         <p className="font-semibold">Development-only Gmail sender</p>
         <p className="mt-1 text-sm">
@@ -316,7 +316,7 @@ export default function LocalEmailSend({ members, pendingJobs = [] }) {
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search members by name or email"
-                  className="min-w-[260px] flex-1 rounded-lg border border-slate-300 px-3 py-2"
+                  className="w-full min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 sm:min-w-[260px]"
                 />
                 <button
                   type="button"

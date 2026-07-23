@@ -5,6 +5,7 @@ import {
 } from "@/app/_actions";
 import PhotoUpload from "@/components/PhotoUpload";
 import PhotoGalleryWithTags from "@/components/PhotoGalleryWithTags";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 
 export default async function PhotoPage() {
   // Fetch all data on the server
@@ -13,12 +14,12 @@ export default async function PhotoPage() {
   const members = await getMembersForTagging();
 
   return (
-    <div className="container mx-auto px-4 py-6">
+    <UltrasharkPageShell title="Photo Gallery">
       {/* Gallery Component */}
       <PhotoGalleryWithTags years={years} />
 
       {/* Upload Component */}
       <PhotoUpload years={years} currentYear={currentYear} members={members} />
-    </div>
+    </UltrasharkPageShell>
   );
 }

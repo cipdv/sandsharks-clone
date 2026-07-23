@@ -4,6 +4,8 @@ const SESSION_MAX_AGE_DAYS = 30;
 const SESSION_REFRESH_THRESHOLD_DAYS = 15;
 const SESSION_COOKIE_NAME = "session";
 
+let memberActivityColumnsPromise;
+
 function sessionExpiresAt() {
   return new Date(Date.now() + SESSION_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
 }
@@ -36,6 +38,33 @@ async function hashSessionToken(token) {
     .join("");
 }
 
+async function ensureMemberActivityColumns() {
+  if (!memberActivityColumnsPromise) {
+    memberActivityColumnsPromise = (async () => {
+      await sql`
+        ALTER TABLE members
+        ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_members_last_login_at
+        ON members(last_login_at)
+      `;
+
+      await sql`
+        CREATE INDEX IF NOT EXISTS idx_members_last_seen_at
+        ON members(last_seen_at)
+      `;
+    })().catch((error) => {
+      memberActivityColumnsPromise = null;
+      throw error;
+    });
+  }
+
+  await memberActivityColumnsPromise;
+}
+
 export function expireSessionCookie(response) {
   response.cookies.set(
     SESSION_COOKIE_NAME,
@@ -61,11 +90,17 @@ export async function validateMiddlewareSession(request) {
   }
 
   const tokenHash = await hashSessionToken(token);
+  await ensureMemberActivityColumns();
+
   const result = await sql`
-    SELECT expires_at
-    FROM member_sessions
-    WHERE token_hash = ${tokenHash}
-      AND expires_at > NOW()
+    SELECT
+      s.expires_at,
+      s.member_id,
+      m.last_seen_at
+    FROM member_sessions s
+    JOIN members m ON m.id = s.member_id
+    WHERE s.token_hash = ${tokenHash}
+      AND s.expires_at > NOW()
     LIMIT 1
   `;
 
@@ -91,6 +126,21 @@ export async function validateMiddlewareSession(request) {
       UPDATE member_sessions
       SET last_seen_at = NOW()
       WHERE token_hash = ${tokenHash}
+    `;
+  }
+
+  const memberLastSeenAt = result.rows[0].last_seen_at
+    ? new Date(result.rows[0].last_seen_at)
+    : null;
+  const memberSeenRefreshThreshold = new Date(
+    Date.now() - 24 * 60 * 60 * 1000
+  );
+
+  if (!memberLastSeenAt || memberLastSeenAt < memberSeenRefreshThreshold) {
+    await sql`
+      UPDATE members
+      SET last_seen_at = NOW()
+      WHERE id = ${result.rows[0].member_id}
     `;
   }
 

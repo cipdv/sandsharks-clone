@@ -1,13 +1,12 @@
 import { getVolunteerRequests } from "@/app/_actions";
 import VolunteerRequestsAdmin from "@/components/VolunteerRequestsAdmin";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 
 export default async function VolunteerRequestsPage() {
   const result = await getVolunteerRequests();
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Volunteer Requests</h1>
-
+    <UltrasharkPageShell title="Volunteer Requests">
       {result.success ? (
         <VolunteerRequestsAdmin requests={result.requests} />
       ) : (
@@ -15,6 +14,6 @@ export default async function VolunteerRequestsPage() {
           {result.message || "Failed to load volunteer requests"}
         </div>
       )}
-    </div>
+    </UltrasharkPageShell>
   );
 }

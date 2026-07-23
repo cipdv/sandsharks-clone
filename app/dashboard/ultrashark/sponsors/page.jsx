@@ -1,14 +1,21 @@
-import { getSponsors, getMembers } from "@/app/_actions.js";
+import { getSponsors, getMembers, getSponsorRequests } from "@/app/_actions.js";
 import SponsorsManagement from "@/components/SponsorsManagement";
+import UltrasharkPageShell from "@/components/UltrasharkPageShell";
 
 export default async function SponsorsPage() {
   const sponsors = await getSponsors();
   const members = await getMembers();
+  const sponsorRequestsResult = await getSponsorRequests();
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Sponsor Management</h1>
-      <SponsorsManagement sponsors={sponsors} members={members} />
-    </div>
+    <UltrasharkPageShell title="Sponsor Management">
+      <SponsorsManagement
+        sponsors={sponsors}
+        members={members}
+        requests={
+          sponsorRequestsResult.success ? sponsorRequestsResult.requests : []
+        }
+      />
+    </UltrasharkPageShell>
   );
 }
