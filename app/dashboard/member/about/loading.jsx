@@ -1,9 +1,8 @@
-// app/dashboard/member/members/loading.jsx
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 export default function Loading() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh]">
+    <div className="flex min-h-[50vh] flex-col items-center justify-center">
       <LoadingSpinner />
     </div>
   );

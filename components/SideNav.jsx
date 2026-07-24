@@ -10,9 +10,9 @@ const SideNav = () => {
           </h1>
         </div>
       </Link>
-      <Link href="/dashboard/member/rules">
+      <Link href="/dashboard/member/about">
         <div className="pl-2 pt-6 pb-6 hover:bg-gray-200  border-b border-sandsharks-blue">
-          <h1 className="cursor-pointer">Learn the rules of the game</h1>
+          <h1 className="cursor-pointer">Learn about the league and rules</h1>
         </div>
       </Link>
       <Link href="/dashboard/member/members">

@@ -165,11 +165,11 @@ const Navbar = ({ currentUser }) => {
                   League History
                 </Link> */}
                 <Link
-                  href="/dashboard/member/rules"
+                  href="/dashboard/member/about"
                   className={menuLinkClass}
                   onClick={closeMenu}
                 >
-                  Rules
+                  About
                 </Link>
                 <Link
                   href="/dashboard/member/photo-gallery"
