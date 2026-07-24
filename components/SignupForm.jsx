@@ -12,7 +12,9 @@ import { ActionButton } from "./ActionButton";
 import { ImageUploader } from "./ImageUploader";
 import { loadStripe } from "@stripe/stripe-js";
 import {
-  CardElement,
+  CardCvcElement,
+  CardExpiryElement,
+  CardNumberElement,
   Elements,
   useElements,
   useStripe,
@@ -53,6 +55,15 @@ function SignupFormContent({ redirectTo }) {
   const labelClass = "mb-1 block text-sm font-medium text-sandsharks-ink";
   const sectionClass = "w-full";
   const panelClass = "box-border w-full rounded-md border bg-white p-4";
+  const stripeElementOptions = {
+    style: {
+      base: {
+        fontSize: "16px",
+        color: "#424770",
+        "::placeholder": { color: "#aab7c4" },
+      },
+    },
+  };
 
   // Use form data from state if available, otherwise use empty strings
   const formData = state?.formData || {};
@@ -112,7 +123,7 @@ function SignupFormContent({ redirectTo }) {
 
     if (!includeDonation) {
       const confirmedNoDonation = window.confirm(
-        'Please confirm that you would not like to make a donation at this time. Donations can be made anytime by logging into your dashboard and clicking the make a donation button.\n\nClick "OK" for "I do not want to donate at this time".\nClick "Cancel" for "go back to make a donation".',
+        'Please confirm that you would not like to make a donation at this time. Donations can be made anytime by logging into your dashboard and clicking the "make a donation" button.\n\nClick "OK" to confirm you do not want to donate at this time".\nClick "Cancel" to go back to make a donation now.',
       );
 
       if (!confirmedNoDonation) {
@@ -137,7 +148,7 @@ function SignupFormContent({ redirectTo }) {
         const firstName = String(nextFormData.get("firstName") || "").trim();
         const lastName = String(nextFormData.get("lastName") || "").trim();
         const email = String(nextFormData.get("email") || "").trim();
-        const cardElement = elements.getElement(CardElement);
+        const cardElement = elements.getElement(CardNumberElement);
 
         const { clientSecret } = await createGuestPaymentIntent(
           donationAmount,
@@ -190,7 +201,10 @@ function SignupFormContent({ redirectTo }) {
           return;
         }
 
-        nextFormData.set("registrationDonationPaymentIntentId", paymentIntent.id);
+        nextFormData.set(
+          "registrationDonationPaymentIntentId",
+          paymentIntent.id,
+        );
       }
 
       const result = await registerNewMember(initialState, nextFormData);
@@ -477,7 +491,7 @@ function SignupFormContent({ redirectTo }) {
 
         <div className={sectionClass}>
           <h2 className="mb-4 text-lg font-semibold">
-            Waiver, Online Privacy, and Photo Consent
+            Waiver, Online Privacy, and Photo Consent Policies
           </h2>
           <div className={panelClass}>
             <div className="mb-3 rounded-md bg-gray-100 p-3">
@@ -568,15 +582,15 @@ function SignupFormContent({ redirectTo }) {
                 className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span>
-                I have read and agree to the waiver, privacy policy, and photo
-                consent policy. <span className="text-red-500">*</span>
+                I have read and agree to the waiver, online privacy, and photo
+                consent policies. <span className="text-red-500">*</span>
               </span>
             </label>
           </div>
         </div>
 
         <div className={sectionClass}>
-          <h2 className="mb-4 text-lg font-semibold">Donation</h2>
+          <h2 className="mb-4 text-lg font-semibold">Donations</h2>
           <div className={panelClass}>
             <p className="text-sm text-gray-700">
               Sandsharks is run entirely with volunteers. No profit is being
@@ -652,19 +666,36 @@ function SignupFormContent({ redirectTo }) {
                     <label className="mb-2 block text-sm font-medium text-gray-700">
                       Credit or Debit Card
                     </label>
-                    <div className="rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
-                      <CardElement
-                        options={{
-                          style: {
-                            base: {
-                              fontSize: "16px",
-                              color: "#424770",
-                              "::placeholder": { color: "#aab7c4" },
-                            },
-                          },
-                          hidePostalCode: true,
-                        }}
-                      />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_7rem]">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">
+                          Card Number
+                        </label>
+                        <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+                          <CardNumberElement
+                            options={{
+                              ...stripeElementOptions,
+                              showIcon: true,
+                            }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">
+                          MM / YY
+                        </label>
+                        <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+                          <CardExpiryElement options={stripeElementOptions} />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-gray-600">
+                          CVC
+                        </label>
+                        <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+                          <CardCvcElement options={stripeElementOptions} />
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-2 flex items-center text-sm text-gray-500">
                       <ShieldCheck className="mr-1 h-4 w-4 text-green-600" />

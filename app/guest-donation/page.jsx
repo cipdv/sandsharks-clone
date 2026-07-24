@@ -4,8 +4,10 @@ import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
 import {
+  CardCvcElement,
+  CardExpiryElement,
+  CardNumberElement,
   Elements,
-  CardElement,
   useStripe,
   useElements,
 } from "@stripe/react-stripe-js";
@@ -16,6 +18,16 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 );
+
+const stripeElementOptions = {
+  style: {
+    base: {
+      fontSize: "16px",
+      color: "#424770",
+      "::placeholder": { color: "#aab7c4" },
+    },
+  },
+};
 
 function GuestCheckoutForm({ guestInfo, amount, onSuccess, onError }) {
   const stripe = useStripe();
@@ -41,7 +53,7 @@ function GuestCheckoutForm({ guestInfo, amount, onSuccess, onError }) {
 
       const result = await stripe.confirmCardPayment(clientSecret, {
         payment_method: {
-          card: elements.getElement(CardElement),
+          card: elements.getElement(CardNumberElement),
           billing_details: {
             name: guestInfo.guestName,
             email: guestInfo.guestEmail,
@@ -70,19 +82,36 @@ function GuestCheckoutForm({ guestInfo, amount, onSuccess, onError }) {
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Credit or Debit Card
         </label>
-        <div className="border border-gray-300 rounded-md p-3">
-          <CardElement
-            options={{
-              style: {
-                base: {
-                  fontSize: "16px",
-                  color: "#424770",
-                  "::placeholder": { color: "#aab7c4" },
-                },
-              },
-              hidePostalCode: true,
-            }}
-          />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_7rem]">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              Card Number
+            </label>
+            <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+              <CardNumberElement
+                options={{
+                  ...stripeElementOptions,
+                  showIcon: true,
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              MM / YY
+            </label>
+            <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+              <CardExpiryElement options={stripeElementOptions} />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-600">
+              CVC
+            </label>
+            <div className="min-h-11 rounded-md border border-gray-300 p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+              <CardCvcElement options={stripeElementOptions} />
+            </div>
+          </div>
         </div>
       </div>
 

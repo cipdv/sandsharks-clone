@@ -25,6 +25,10 @@ const AboutDashboardPage = () => {
             good reputation with all beach goers.
           </p>
           <p>
+            The volleyball courts are numbered at the top of the posts so you
+            can find which courts we'll be playing on.
+          </p>
+          <p>
             There is paid parking available at the park, and lots of places to
             lock up bikes. The Lakeshore bike path will take you right there!
           </p>

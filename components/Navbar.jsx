@@ -169,7 +169,7 @@ const Navbar = ({ currentUser }) => {
                   className={menuLinkClass}
                   onClick={closeMenu}
                 >
-                  About
+                  About the League
                 </Link>
                 <Link
                   href="/dashboard/member/photo-gallery"
